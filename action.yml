@@ -1,5 +1,5 @@
 name: 'Marlowe CI Security Guard'
-description: 'Source-available diff-scoped security verdict (Holds up / Fails / Can''t tell) with SARIF v2.1.0 output and AI-PR guardrail checks.'
+description: 'Diff-scoped security verdict (Holds up / Fails / Can''t tell) with SARIF v2.1.0 output and AI-PR guardrail checks.'
 author: 'Zero Theory Labs'
 
 branding:
