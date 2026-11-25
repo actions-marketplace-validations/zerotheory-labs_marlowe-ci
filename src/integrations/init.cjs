@@ -104,7 +104,7 @@ jobs:
 
       - name: Run Marlowe CI / Guard
         id: marlowe
-        uses: zerotheory-labs/marlowe-ci@v0.1.0
+        uses: zerotheory-labs/marlowe-ci@v0.1.1
         with:
           mode: diff
           fail-on: high
@@ -114,7 +114,7 @@ jobs:
 
       - name: Upload SARIF to GitHub Code Scanning
         if: always() && hashFiles('marlowe.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: marlowe.sarif
           category: marlowe-ci

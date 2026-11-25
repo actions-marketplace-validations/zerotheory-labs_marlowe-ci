@@ -55,5 +55,5 @@ outputs:
     description: 'Path to the generated SARIF v2.1.0 report.'
 
 runs:
-  using: 'node20'
+  using: 'node24'
   main: 'src/github-action.cjs'

@@ -7,8 +7,12 @@ const { runGit } = require('./engine/git-diff.cjs');
 const COMMENT_MARKER = '<!-- marlowe-ci-verdict -->';
 
 function getInput(name, fallback = '') {
-  const key = `INPUT_${name.replace(/[^a-zA-Z0-9]+/g, '_').toUpperCase()}`;
-  const val = process.env[key];
+  const normalized = String(name || '').trim();
+  const hyphenKey = `INPUT_${normalized.replace(/ /g, '_').toUpperCase()}`;
+  const underscoreKey = `INPUT_${normalized.replace(/[^a-zA-Z0-9]+/g, '_').toUpperCase()}`;
+  const val = process.env[hyphenKey] !== undefined && process.env[hyphenKey] !== ''
+    ? process.env[hyphenKey]
+    : process.env[underscoreKey];
   return val !== undefined && val !== '' ? val.trim() : fallback;
 }
 
@@ -46,7 +50,7 @@ async function upsertPrComment({ token, repository, prNumber, body, fetchImpl = 
   const headers = {
     Authorization: `Bearer ${token}`,
     Accept: 'application/vnd.github+json',
-    'User-Agent': 'Marlowe-CI/0.1.0',
+    'User-Agent': 'Marlowe-CI/0.1.1',
     'X-GitHub-Api-Version': '2022-11-28'
   };
 
@@ -59,6 +63,8 @@ async function upsertPrComment({ token, repository, prNumber, body, fetchImpl = 
       const found = comments.find(c => typeof c?.body === 'string' && c.body.includes(COMMENT_MARKER));
       if (found) existingId = found.id;
     }
+  } else {
+    process.stderr.write(`[marlowe-ci] PR comment lookup failed with HTTP ${listRes.status}\n`);
   }
 
   const targetUrl = existingId
@@ -71,6 +77,10 @@ async function upsertPrComment({ token, repository, prNumber, body, fetchImpl = 
     headers: { ...headers, 'Content-Type': 'application/json' },
     body: JSON.stringify({ body })
   });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    process.stderr.write(`[marlowe-ci] PR comment ${method} failed with HTTP ${res.status}: ${errText.slice(0, 200)}\n`);
+  }
   return res.ok;
 }
 

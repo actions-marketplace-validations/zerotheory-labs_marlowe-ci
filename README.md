@@ -15,7 +15,7 @@
 
 AI coding agents mutate files, run shell commands, and open pull requests in seconds. Giving an agent an unguarded shell is a liability — and shallow static scanners drown teams in unreachable alerts.
 
-**Marlowe CI / Guard** (`v0.1.0`) brings [Marlowe](https://github.com/zerotheory-labs/marlowe)'s host-enforced security boundaries directly into **Claude Code hooks**, **MCP clients** (Claude Code, Cursor, Codex CLI, Windsurf, Antigravity), **GitHub Actions (SARIF v2.1.0)**, and **git pre-commit** hooks with zero runtime dependencies and no LLM key required.
+**Marlowe CI / Guard** (`v0.1.1`) brings [Marlowe](https://github.com/zerotheory-labs/marlowe)'s host-enforced security boundaries directly into **Claude Code hooks**, **MCP clients** (Claude Code, Cursor, Codex CLI, Windsurf, Antigravity), **GitHub Actions (SARIF v2.1.0)**, and **git pre-commit** hooks with zero runtime dependencies and no LLM key required.
 
 ---
 
@@ -95,7 +95,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: zerotheory-labs/marlowe-ci@v0.1.0
+      - uses: zerotheory-labs/marlowe-ci@v0.1.1
         with:
           mode: diff
           fail-on: high
@@ -103,7 +103,7 @@ jobs:
           comment-pr: 'true'
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: github/codeql-action/upload-sarif@v3
+      - uses: github/codeql-action/upload-sarif@v4
         if: always() && hashFiles('marlowe.sarif') != ''
         with:
           sarif_file: marlowe.sarif
