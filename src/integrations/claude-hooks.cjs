@@ -3,6 +3,7 @@ const net = require('node:net');
 const { isPrivateOrReservedIp, parseTargetEndpoint, checkTargetScopeSync } = require('../core/cyber-scope.cjs');
 const { isProtectedSegment, resolveWithinRoot, readRegularTextFile, loadScopeConfig } = require('../core/fs-safe.cjs');
 const { shannonEntropy } = require('../core/cyber-analyzers.cjs');
+const { isBeefilePath, isBpfSourcePath, auditBeefile, auditBpfUpatchSource } = require('../core/shirudo.cjs');
 const { scanTextLines, runAudit } = require('../engine/verdict.cjs');
 
 const FILE_READ_TOOLS = new Set(['Read', 'View']);
@@ -11,7 +12,7 @@ const FILE_MUTATION_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit
 const CATASTROPHIC_RM_RE = /\brm\s+(?:-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r|--recursive\s+--force|--force\s+--recursive)\s+(?:\/(?:\s|$|\*)|~\/?(?:\s|$)|\$HOME\b|\$\{HOME\})/i;
 const PIPE_TO_SHELL_RE = /\b(?:curl|wget)\b[^\n|]*\|\s*(?:sudo\s+|env\s+)?(?:sh|bash|zsh|dash|ksh)\b/i;
 const METADATA_SSRF_RE = /(?:169\.254\.169\.254|169\.254\.170\.2|metadata\.google\.internal|metadata\.goog)/i;
-const SENSITIVE_PATH_IN_CMD_RE = /(?:~\/\.ssh\/id_|\/\.ssh\/id_|~\/\.aws\/credentials|\/\.aws\/credentials|~\/\.gnupg|\/\.npmrc\b|\/\.netrc\b|\b\.env(?:\.(?:local|prod|production|staging))?\b)/i;
+const SENSITIVE_PATH_IN_CMD_RE = /(?:~\/\.ssh\/id_|\/\.ssh\/id_|~\/\.aws\/credentials|\/\.aws\/credentials|~\/\.gnupg|~\/\.shirudo|\/\.shirudo|shirudo-keys|\/\.npmrc\b|\/\.netrc\b|\b\.env(?:\.(?:local|prod|production|staging))?\b)/i;
 const NETWORK_EGRESS_IN_CMD_RE = /\b(?:curl|wget|nc|ncat|netcat|scp|sftp|rsync|ftp|telnet|socat)\b|https?:\/\//i;
 const TLS_ENV_BYPASS_RE = /\bNODE_TLS_REJECT_UNAUTHORIZED\s*=\s*['"]?0\b/;
 
@@ -22,7 +23,10 @@ const HIGH_IMPACT_ASK_PATTERNS = [
   { re: /(?:^|[;&|]\s*)sudo\s+/, reason: 'Command elevates privileges with sudo.' },
   { re: /\b(?:npm|pnpm|yarn)\s+publish\b/, reason: 'Publishing a package affects external registries.' },
   { re: /\bwrangler\s+deploy\b|\bterraform\s+apply\b|\bpulumi\s+up\b/, reason: 'Command modifies live cloud infrastructure or deployments.' },
-  { re: /\bdocker\s+run\b[^\n]*--privileged\b/, reason: 'Running a --privileged container disables container isolation.' }
+  { re: /\bdocker\s+run\b[^\n]*--privileged\b/, reason: 'Running a --privileged container disables container isolation.' },
+  { re: /\bshirudo\s+upatch\s+(?:load|unload|reconcile)\b/i, reason: 'Loading, unloading, or reconciling live Shirudo kernel/runtime upatches modifies active host enforcement.' },
+  { re: /\bshirudo\s+bpm\s+(?:build|push|tree\s+append)\b/i, reason: 'Building, signing, or pushing Shirudo .bee packages or signed upatch trees affects fleet distribution.' },
+  { re: /\bshirudo\s+(?:genkey|keys|init|image)\b/i, reason: 'Managing Shirudo ML-DSA-87 signing keys, keyring trust, or initrd images changes trust roots.' }
 ];
 
 function hasProtectedPathSegment(filePath) {
@@ -205,6 +209,24 @@ async function handlePostToolUse(payload) {
     if (!/^(?:const|let|var)\s+[A-Z0-9_]+_RE\s*=/.test(ln.trim()) && /\b(?:nosemgrep|gitleaks:allow|trivy:ignore|bandit:\s*skip|@ts-nocheck)\b|\/\/\s*nolint\b|eslint-disable(?:-next-line)?\s+security\b/i.test(ln)) {
       warnings.push(`• [SUPPRESSION] Security suppression directive detected at ${resolved.relPath}:${i + 1}; verify justification.`);
       break;
+    }
+  }
+
+  if (isBeefilePath(resolved.relPath)) {
+    const shirudoRes = await auditBeefile(resolved.relPath, text, { root: resolved.rootReal });
+    for (const f of shirudoRes.findings.slice(0, 5)) {
+      warnings.push(`• [SHIRUDO ${f.severity.toUpperCase()}] ${f.title} at ${f.location}: ${f.evidence}`);
+    }
+    for (const ct of shirudoRes.cantTellReasons.slice(0, 3)) {
+      warnings.push(`• [SHIRUDO CAN'T TELL · ${ct.code}] ${ct.message}`);
+    }
+  } else if (isBpfSourcePath(resolved.relPath)) {
+    const bpfRes = auditBpfUpatchSource(resolved.relPath, text);
+    for (const f of bpfRes.findings.slice(0, 5)) {
+      warnings.push(`• [SHIRUDO ${f.cwe} ${f.severity.toUpperCase()}] ${f.title} at ${f.location}: ${f.evidence}`);
+    }
+    for (const ct of bpfRes.cantTellReasons.slice(0, 3)) {
+      warnings.push(`• [SHIRUDO CAN'T TELL · ${ct.code}] ${ct.message}`);
     }
   }
 

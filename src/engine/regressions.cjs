@@ -12,13 +12,14 @@ const SECURITY_CONTROLS = [
   { id: 'shell-false', label: 'shell: false', re: /\bshell\s*:\s*false\b/ },
   { id: 'nofollow', label: 'O_NOFOLLOW', re: /\bO_NOFOLLOW\b/ },
   { id: 'scope-guard', label: 'assertTargetInScope', re: /\bassertTargetInScope\b/ },
-  { id: 'auth-middleware', label: 'authentication/authorization check', re: /\b(?:requireAuth|authenticate|authorize)\b/ }
+  { id: 'auth-middleware', label: 'authentication/authorization check', re: /\b(?:requireAuth|authenticate|authorize)\b/ },
+  { id: 'bpf-license', label: 'BPF SEC("license") declaration', re: /SEC\s*\(\s*["']license["']\s*\)/ }
 ];
 
 const TEST_FILE_RE = /(?:^|\/)(?:tests?|__tests__)\/|\.(?:test|spec)\.[cm]?[jt]sx?$|_test\.go$|test_[^/]+\.py$/i;
 const SKIP_TEST_RE = /\b(?:it|test|describe)\.skip\s*\(|\bx(?:it|describe)\s*\(|@pytest\.mark\.skip|\bt\.Skip\s*\(/;
-const SECURITY_TEST_HINT_RE = /\b(?:auth|login|session|token|jwt|rbac|acl|csrf|xss|ssrf|sqli|tls|scope|security|secret|permission)\b/i;
-const SENSITIVE_SURFACE_PATH_RE = /(?:^|\/)(?:auth|login|session|oauth|jwt|rbac|acl|crypto|tls|scope|security|middleware|dockerfile|containerfile|\.github\/workflows\/).*/i;
+const SECURITY_TEST_HINT_RE = /\b(?:auth|login|session|token|jwt|rbac|acl|csrf|xss|ssrf|sqli|tls|scope|security|secret|permission|shirudo|upatch|ebpf|bpf|attest|tpm)\b/i;
+const SENSITIVE_SURFACE_PATH_RE = /(?:^|\/)(?:beefile|auth|login|session|oauth|jwt|rbac|acl|crypto|tls|scope|security|middleware|dockerfile|containerfile|\.github\/workflows\/).*/i;
 
 function isTestFilePath(relPath) {
   return TEST_FILE_RE.test(String(relPath || ''));
@@ -26,7 +27,7 @@ function isTestFilePath(relPath) {
 
 function isSensitiveSurfacePath(relPath) {
   const p = String(relPath || '');
-  return (SENSITIVE_SURFACE_PATH_RE.test(p) || /\.tf$/i.test(p)) && !isTestFilePath(p);
+  return (SENSITIVE_SURFACE_PATH_RE.test(p) || /\.(?:tf|beefile|bpf\.c|upatch\.c|bee|upatch)$/i.test(p)) && !isTestFilePath(p);
 }
 
 function isCommentOrRuleLine(rawText) {

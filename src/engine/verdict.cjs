@@ -23,6 +23,7 @@ const { normalizeFinding, toSarifReport, toMarkdownReport } = require('../core/f
 const { getGitDiff } = require('./git-diff.cjs');
 const { detectGuardrailRegressions } = require('./regressions.cjs');
 const { loadBaseline, applyBaseline } = require('./baseline.cjs');
+const { isBeefilePath, isBpfSourcePath, auditBeefile, auditBpfUpatchSource } = require('../core/shirudo.cjs');
 
 const SEVERITY_RANK = { critical: 4, high: 3, medium: 2, low: 1, info: 0 };
 const SAFE_MEDIA_RE = /\.(?:png|jpe?g|webp|gif|svg|ico|mp4|webm|mov|woff2?|ttf|otf|pdf|lock)$/i;
@@ -317,6 +318,16 @@ async function runAudit({
 
     const { secretHits, codeHits } = scanTextLines(cand.relPath, text, { allowedLines: cand.allowedLines });
     rawFindings.push(...secretHits);
+
+    if (isBeefilePath(cand.relPath)) {
+      const bfRes = await auditBeefile(cand.relPath, text, { root: absRoot });
+      rawFindings.push(...bfRes.findings);
+      cantTellReasons.push(...bfRes.cantTellReasons);
+    } else if (isBpfSourcePath(cand.relPath)) {
+      const bpfRes = auditBpfUpatchSource(cand.relPath, text);
+      rawFindings.push(...bpfRes.findings);
+      cantTellReasons.push(...bpfRes.cantTellReasons);
+    }
 
     for (const hit of codeHits) {
       const reach = await inspectSourceReachability(absRoot, hit.path, hit.line);

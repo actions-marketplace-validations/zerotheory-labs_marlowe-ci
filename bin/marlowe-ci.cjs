@@ -22,6 +22,11 @@ const {
   analyzeLogs,
   extractIocs
 } = require('../src/core/cyber-analyzers.cjs');
+const {
+  inspectShirudoTarget,
+  verifyShirudoAttestation,
+  inspectShirudoStatus
+} = require('../src/core/shirudo.cjs');
 const { detectSecurityTools } = require('../src/core/cyber-toolchain.cjs');
 const { loginPath, DEFAULT_PATH } = require('../src/core/toolchain.cjs');
 const pkg = require('../package.json');
@@ -35,12 +40,14 @@ Usage:
                                         Run ScopeGate-enforced HTTP, TLS, or DNS inspection
   marlowe-ci dfir <triage|logs|iocs> <file> [--path <dir>] [--filter <str>] [--json]
                                         Run read-only O_NOFOLLOW forensic triage/log/IOC analysis
+  marlowe-ci shirudo <audit|attest|status> [target] [--path <dir>] [--nonce <hex>] [--ak-name <ak>] [--fail-on-cant-tell] [--json]
+                                        Audit Shirudo Beefiles/BPF upatches or verify TPM 2.0 attestation
   marlowe-ci claude <pre-tool|post-tool|stop> [--strict-cant-tell]
                                         Run Claude Code hook handler over stdin/stdout JSON
-  marlowe-ci mcp [--path <dir>]         Start stdio JSON-RPC 2.0 MCP security server (11 tools)
+  marlowe-ci mcp [--path <dir>]         Start stdio JSON-RPC 2.0 MCP security server (13 tools)
   marlowe-ci init [--claude|--claude-global|--mcp|--github|--git-hook|--all] [--path <dir>] [--cmd <prefix>]
                                         Install idempotent configs into a project
-  marlowe-ci doctor [--path <dir>]      Inspect installed local security CLIs (9-CLI posture)
+  marlowe-ci doctor [--path <dir>]      Inspect installed local security CLIs (10-CLI posture)
 
 Scan options:
   --path <dir>          Workspace directory (default: .)
@@ -245,6 +252,69 @@ async function cmdDfir(kind, fileArg, flags) {
   return 0;
 }
 
+async function cmdShirudo(action, arg, flags) {
+  const root = path.resolve(String(flags.path || '.'));
+  if (!action || action === 'audit') {
+    const target = arg || '.';
+    const out = await inspectShirudoTarget(root, target);
+    if (flags.json) {
+      process.stdout.write(JSON.stringify(out, null, 2) + '\n');
+    } else {
+      process.stdout.write(`${out.summary}\n`);
+      for (const f of out.findings) {
+        process.stdout.write(`  - [${String(f.severity || 'medium').toUpperCase()}] ${f.title} (${f.location})${f.cwe ? ` [${f.cwe}]` : ''}\n`);
+      }
+      for (const ct of out.cantTellReasons) {
+        process.stdout.write(`  - [${ct.code}] ${ct.message}\n`);
+      }
+    }
+    if (out.verdict === 'fails') return 1;
+    if (out.verdict === 'cant-tell' && flags['fail-on-cant-tell']) return 2;
+    return 0;
+  }
+
+  const commandPath = (await loginPath({ shell: process.env.SHELL || '', root, env: process.env })) || process.env.PATH || DEFAULT_PATH;
+
+  if (action === 'attest') {
+    if (!arg) {
+      throw new Error('Usage: marlowe-ci shirudo attest <evidence.json> [--nonce <hex>] [--ak-name <ak>] [--path <dir>] [--fail-on-cant-tell] [--json]');
+    }
+    const out = await verifyShirudoAttestation({
+      root,
+      evidencePath: arg,
+      nonce: typeof flags.nonce === 'string' ? flags.nonce : '',
+      akName: typeof flags['ak-name'] === 'string' ? flags['ak-name'] : '',
+      commandPath
+    });
+    if (flags.json) {
+      process.stdout.write(JSON.stringify(out, null, 2) + '\n');
+    } else {
+      process.stdout.write(`Shirudo Attestation (${out.evidencePath}): ${out.verdictLabel}\n`);
+      if (out.reason) process.stdout.write(`  ${out.reason}\n`);
+      if (out.output) process.stdout.write(`  ${out.output}\n`);
+    }
+    if (out.verdict === 'fails') return 1;
+    if (out.verdict === 'cant-tell' && flags['fail-on-cant-tell']) return 2;
+    return 0;
+  }
+
+  if (action === 'status') {
+    const out = await inspectShirudoStatus({ root, commandPath });
+    if (flags.json) {
+      process.stdout.write(JSON.stringify(out, null, 2) + '\n');
+    } else {
+      process.stdout.write(`Shirudo Status: ${out.verdictLabel}\n`);
+      if (out.reason) process.stdout.write(`  ${out.reason}\n`);
+      if (out.output) process.stdout.write(`${out.output}\n`);
+    }
+    if (out.verdict === 'fails') return 1;
+    if (out.verdict === 'cant-tell' && flags['fail-on-cant-tell']) return 2;
+    return 0;
+  }
+
+  throw new Error(`Unknown shirudo subcommand "${action}". Use audit, attest, or status.`);
+}
+
 async function cmdDoctor(flags) {
   const root = path.resolve(String(flags.path || '.'));
   const commandPath = (await loginPath({ shell: process.env.SHELL || '', root, env: process.env })) || process.env.PATH || DEFAULT_PATH;
@@ -279,6 +349,7 @@ async function main() {
   if (sub === 'baseline') return cmdBaseline(flags);
   if (sub === 'recon') return cmdRecon(positionals[1], positionals[2], flags);
   if (sub === 'dfir') return cmdDfir(positionals[1], positionals[2], flags);
+  if (sub === 'shirudo') return cmdShirudo(positionals[1], positionals[2], flags);
   if (sub === 'claude') {
     const hookType = positionals[1] || '';
     return runClaudeHookCli(hookType, { strictCantTell: Boolean(flags['strict-cant-tell']) });

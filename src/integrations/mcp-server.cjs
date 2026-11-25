@@ -12,12 +12,13 @@ const {
   analyzeLogs
 } = require('../core/cyber-analyzers.cjs');
 const { detectSecurityTools } = require('../core/cyber-toolchain.cjs');
+const { inspectShirudoTarget, verifyShirudoAttestation } = require('../core/shirudo.cjs');
 const { loginPath, DEFAULT_PATH } = require('../core/toolchain.cjs');
 const { runAudit } = require('../engine/verdict.cjs');
 
 const SERVER_INFO = {
   name: 'marlowe-ci',
-  version: '0.2.0'
+  version: '0.3.0'
 };
 
 const MCP_TOOLS = [
@@ -86,7 +87,7 @@ const MCP_TOOLS = [
   },
   {
     name: 'marlowe_doctor',
-    description: 'Detect which of the 9 supported local security CLIs (semgrep, trivy, gitleaks, osv-scanner, nmap, nuclei, tshark, radare2, otool) are installed on verified PATH.',
+    description: 'Detect which of the 10 supported local security CLIs (semgrep, trivy, gitleaks, osv-scanner, nmap, nuclei, tshark, radare2, otool, shirudo) are installed on verified PATH.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -152,6 +153,31 @@ const MCP_TOOLS = [
         path: { type: 'string', description: 'Workspace-relative file path.' }
       },
       required: ['path'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'marlowe_shirudo_audit',
+    description: 'Audit Shirudo Beefiles, Plain BPF C (.bpf.c/.upatch.c) runtime upatches, and .bee/.upatch bundles for embedded keys, insecure registries, path traversal, unsafe BPF helpers, and wildcard selectors.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Workspace-relative path to a Beefile, .bpf.c file, .bee package, or directory (default: .).' }
+      },
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'marlowe_shirudo_verify_attestation',
+    description: 'Inspect a Shirudo TPM 2.0 attestation evidence JSON file in the workspace and verify it offline via trusted shirudo CLI when installed.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        evidence_path: { type: 'string', description: 'Workspace-relative path to the Shirudo TPM 2.0 attestation evidence JSON file.' },
+        nonce: { type: 'string', description: 'Optional expected hex nonce (8-128 hex chars).' },
+        ak_name: { type: 'string', description: 'Optional expected attestation key (AK) name.' }
+      },
+      required: ['evidence_path'],
       additionalProperties: false
     }
   }
@@ -277,6 +303,25 @@ async function executeMcpTool(name, args = {}, { root = process.cwd() } = {}) {
       if (typeof args.path !== 'string' || !args.path.trim()) throw new Error('path is required.');
       const resolved = await resolveWithinRoot(root, args.path.trim());
       return extractIocs(resolved.fullPath, resolved.relPath, signal);
+    }
+
+    case 'marlowe_shirudo_audit': {
+      const relTarget = typeof args.path === 'string' && args.path.trim() ? args.path.trim() : '.';
+      return inspectShirudoTarget(root, relTarget, signal);
+    }
+
+    case 'marlowe_shirudo_verify_attestation': {
+      if (typeof args.evidence_path !== 'string' || !args.evidence_path.trim()) {
+        throw new Error('evidence_path is required.');
+      }
+      const commandPath = (await loginPath({ shell: process.env.SHELL || '', root, env: process.env })) || process.env.PATH || DEFAULT_PATH;
+      return verifyShirudoAttestation({
+        root,
+        evidencePath: args.evidence_path.trim(),
+        nonce: typeof args.nonce === 'string' ? args.nonce : '',
+        akName: typeof args.ak_name === 'string' ? args.ak_name : '',
+        commandPath
+      });
     }
 
     default:

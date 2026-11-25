@@ -50,7 +50,7 @@ async function upsertPrComment({ token, repository, prNumber, body, fetchImpl = 
   const headers = {
     Authorization: `Bearer ${token}`,
     Accept: 'application/vnd.github+json',
-    'User-Agent': 'Marlowe-CI/0.2.0',
+    'User-Agent': 'Marlowe-CI/0.3.0',
     'X-GitHub-Api-Version': '2022-11-28'
   };
 

@@ -27,6 +27,42 @@ test('MCP stdio server handles initialize, tools/list, and tools/call over newli
     ].join('\n') + '\n',
     'utf8'
   );
+  await fs.writeFile(
+    path.join(dir, 'Beefile'),
+    [
+      '[package]',
+      'name = "demo-shield"',
+      'description = "Scoped test shield"',
+      '',
+      '[[upatches]]',
+      'source = "guard.bpf.c"',
+      'type = "bpf"',
+      '',
+      '[upatches.tree]',
+      'id = "demo-shield"',
+      '',
+      '[upatches.tree.selector.labels]',
+      'role = ["edge"]'
+    ].join('\n') + '\n',
+    'utf8'
+  );
+  await fs.writeFile(
+    path.join(dir, 'guard.bpf.c'),
+    [
+      'char LICENSE[] SEC("license") = "Dual BSD/GPL";',
+      'SEC("lsm/file_open")',
+      'int handle_open(void *ctx) {',
+      '  unsigned int pid = bpf_get_current_pid_tgid() >> 32;',
+      '  return pid ? 0 : 0;',
+      '}'
+    ].join('\n') + '\n',
+    'utf8'
+  );
+  await fs.writeFile(
+    path.join(dir, 'attestation.json'),
+    JSON.stringify({ quote: 'tpm2-quote', upatches: ['demo-shield'] }),
+    'utf8'
+  );
   await fs.writeFile(path.join(dir, '.marlowe-scope.json'), JSON.stringify({ targets: ['https://example.com'] }), 'utf8');
   await execFileAsync('git', ['add', '.'], { cwd: dir });
   await execFileAsync('git', ['commit', '-m', 'init'], { cwd: dir });
@@ -43,7 +79,9 @@ test('MCP stdio server handles initialize, tools/list, and tools/call over newli
     { jsonrpc: '2.0', id: 8, method: 'tools/call', params: { name: 'marlowe_extract_iocs', arguments: { path: 'incident.log' } } },
     { jsonrpc: '2.0', id: 9, method: 'tools/call', params: { name: 'marlowe_inspect_http', arguments: { url: 'http://169.254.169.254/latest/meta-data' } } },
     { jsonrpc: '2.0', id: 10, method: 'tools/call', params: { name: 'marlowe_inspect_tls', arguments: { target: '10.0.0.1:443' } } },
-    { jsonrpc: '2.0', id: 11, method: 'tools/call', params: { name: 'marlowe_dns_recon', arguments: { domain: 'unauthorized.example.org' } } }
+    { jsonrpc: '2.0', id: 11, method: 'tools/call', params: { name: 'marlowe_dns_recon', arguments: { domain: 'unauthorized.example.org' } } },
+    { jsonrpc: '2.0', id: 12, method: 'tools/call', params: { name: 'marlowe_shirudo_audit', arguments: { path: '.' } } },
+    { jsonrpc: '2.0', id: 13, method: 'tools/call', params: { name: 'marlowe_shirudo_verify_attestation', arguments: { evidence_path: 'attestation.json', nonce: 'abcdef01' } } }
   ];
 
   const responses = await new Promise((resolve, reject) => {
@@ -66,12 +104,12 @@ test('MCP stdio server handles initialize, tools/list, and tools/call over newli
     child.stdin.end();
   });
 
-  // notifications/initialized produces no response; 11 request IDs -> 11 JSON lines
-  assert.equal(responses.length, 11);
+  // notifications/initialized produces no response; 13 request IDs -> 13 JSON lines
+  assert.equal(responses.length, 13);
   const byId = Object.fromEntries(responses.map(r => [r.id, r]));
 
   assert.equal(byId[1].result.serverInfo.name, 'marlowe-ci');
-  assert.equal(byId[1].result.serverInfo.version, '0.2.0');
+  assert.equal(byId[1].result.serverInfo.version, '0.3.0');
   assert.equal(byId[1].result.protocolVersion, '2025-03-26');
 
   const toolNames = byId[2].result.tools.map(tool => tool.name);
@@ -86,7 +124,9 @@ test('MCP stdio server handles initialize, tools/list, and tools/call over newli
     'marlowe_inspect_tls',
     'marlowe_dns_recon',
     'marlowe_analyze_logs',
-    'marlowe_extract_iocs'
+    'marlowe_extract_iocs',
+    'marlowe_shirudo_audit',
+    'marlowe_shirudo_verify_attestation'
   ]);
 
   const scanRes = JSON.parse(byId[3].result.content[0].text);
@@ -100,7 +140,7 @@ test('MCP stdio server handles initialize, tools/list, and tools/call over newli
   assert.equal(byId[5].result.isError, true);
 
   const doctorRes = JSON.parse(byId[6].result.content[0].text);
-  assert.equal(doctorRes.totalCount, 9);
+  assert.equal(doctorRes.totalCount, 10);
 
   const logsRes = JSON.parse(byId[7].result.content[0].text);
   assert.ok(logsRes.signatureCounts['sqli-probe'] >= 1);
@@ -115,4 +155,12 @@ test('MCP stdio server handles initialize, tools/list, and tools/call over newli
   assert.equal(byId[9].result.isError, true);
   assert.equal(byId[10].result.isError, true);
   assert.equal(byId[11].result.isError, true);
+
+  const shirudoAuditRes = JSON.parse(byId[12].result.content[0].text);
+  assert.equal(shirudoAuditRes.verdict, 'holds');
+  assert.equal(shirudoAuditRes.inspectedCount, 2);
+
+  const attestRes = JSON.parse(byId[13].result.content[0].text);
+  assert.equal(attestRes.evidencePath, 'attestation.json');
+  assert.ok(['holds', 'fails', 'cant-tell'].includes(attestRes.verdict));
 });

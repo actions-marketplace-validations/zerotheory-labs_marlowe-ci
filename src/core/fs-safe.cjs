@@ -4,7 +4,7 @@ const path = require('node:path');
 const { DEFAULT_SCOPE, validateScopeConfig } = require('./cyber-scope.cjs');
 
 const ENV_TEMPLATE_RE = /^\.env\.(?:example|sample|template)$/i;
-const PROTECTED_SEGMENTS_RE = /^(\.git|\.ssh|\.aws|\.gnupg|\.codex|\.npmrc|\.netrc|\.pypirc|\.env(?:\..*)?|.*\.(?:pem|key))$/i;
+const PROTECTED_SEGMENTS_RE = /^(\.git|\.ssh|\.aws|\.gnupg|\.codex|\.shirudo|shirudo-keys|\.npmrc|\.netrc|\.pypirc|\.env(?:\..*)?|.*\.(?:pem|key))$/i;
 
 const SKIP_DIRS = new Set([
   'node_modules',
