@@ -1,0 +1,201 @@
+#!/usr/bin/env node
+
+const fs = require('node:fs/promises');
+const path = require('node:path');
+const { runAudit } = require('../src/engine/verdict.cjs');
+const { formatTerminalReport, formatMarkdownSummary } = require('../src/engine/format.cjs');
+const { runClaudeHookCli } = require('../src/integrations/claude-hooks.cjs');
+const { startMcpServer } = require('../src/integrations/mcp-server.cjs');
+const {
+  installClaudeHooks,
+  installMcpConfig,
+  installGitHubWorkflow,
+  installGitPreCommitHook
+} = require('../src/integrations/init.cjs');
+const { detectSecurityTools } = require('../src/core/cyber-toolchain.cjs');
+const { loginPath, DEFAULT_PATH } = require('../src/core/toolchain.cjs');
+const pkg = require('../package.json');
+
+const HELP = `Marlowe CI / Guard v${pkg.version} — Zero Theory Labs
+
+Usage:
+  marlowe-ci scan [options]             Run diff or full workspace security audit
+  marlowe-ci claude <pre-tool|post-tool|stop> [--strict-cant-tell]
+                                        Run Claude Code hook handler over stdin/stdout JSON
+  marlowe-ci mcp [--path <dir>]         Start stdio JSON-RPC 2.0 MCP security server
+  marlowe-ci init [--claude|--claude-global|--mcp|--github|--git-hook|--all] [--path <dir>]
+                                        Install idempotent configs into a project
+  marlowe-ci doctor [--path <dir>]      Inspect installed local security CLIs (9-CLI posture)
+
+Scan options:
+  --path <dir>          Workspace directory (default: .)
+  --mode <diff|full>    Audit mode (default: diff, or full if --path is a non-git folder with --mode full)
+  --staged              Audit staged git index changes only (for pre-commit)
+  --base <ref>          Compare HEAD against git base ref (e.g. origin/main)
+  --fail-on <sev>       critical | high | medium | low (default: high)
+  --fail-on-cant-tell   Exit 2 when verdict is CAN'T TELL
+  --no-osv              Skip online OSV.dev advisory queries
+  --scanners <list>     none | auto | comma-separated CLIs (gitleaks,semgrep,trivy,osv-scanner)
+  --sarif <file>        Write SARIF v2.1.0 report to file
+  --markdown            Print GitHub Markdown summary instead of terminal text
+  --json                Print structured JSON verdict output
+
+Exit codes:
+  0  HOLDS UP (or CAN'T TELL without --fail-on-cant-tell)
+  1  FAILS (verified security issue >= --fail-on or hardcoded secret)
+  2  CAN'T TELL (when --fail-on-cant-tell is set)
+`;
+
+function parseArgs(argv) {
+  const positionals = [];
+  const flags = {};
+  for (let i = 0; i < argv.length; i++) {
+    const token = argv[i];
+    if (!token.startsWith('--')) {
+      positionals.push(token);
+      continue;
+    }
+    const eq = token.indexOf('=');
+    if (eq !== -1) {
+      flags[token.slice(2, eq)] = token.slice(eq + 1);
+      continue;
+    }
+    const key = token.slice(2);
+    if (key.startsWith('no-')) {
+      flags[key.slice(3)] = false;
+      continue;
+    }
+    const next = argv[i + 1];
+    if (next !== undefined && !next.startsWith('--')) {
+      flags[key] = next;
+      i++;
+    } else {
+      flags[key] = true;
+    }
+  }
+  return { positionals, flags };
+}
+
+async function cmdScan(flags) {
+  const root = path.resolve(String(flags.path || '.'));
+  const mode = flags.mode === 'full' ? 'full' : 'diff';
+  const scannersRaw = typeof flags.scanners === 'string' ? flags.scanners : 'none';
+  const scanners = scannersRaw.split(',').map(s => s.trim()).filter(Boolean);
+
+  const result = await runAudit({
+    root,
+    mode,
+    staged: Boolean(flags.staged),
+    baseRef: typeof flags.base === 'string' ? flags.base : '',
+    failOn: typeof flags['fail-on'] === 'string' ? flags['fail-on'] : 'high',
+    queryOsv: flags.osv !== false,
+    scanners
+  });
+
+  if (typeof flags.sarif === 'string' && flags.sarif.trim()) {
+    const sarifOut = path.resolve(root, flags.sarif.trim());
+    await fs.mkdir(path.dirname(sarifOut), { recursive: true });
+    await fs.writeFile(sarifOut, JSON.stringify(result.sarif, null, 2) + '\n', 'utf8');
+  }
+
+  if (flags.json) {
+    process.stdout.write(JSON.stringify(result, null, 2) + '\n');
+  } else if (flags.markdown) {
+    process.stdout.write(formatMarkdownSummary(result) + '\n');
+  } else {
+    process.stdout.write(formatTerminalReport(result));
+  }
+
+  if (result.verdict === 'fails') return 1;
+  if (result.verdict === 'cant-tell' && flags['fail-on-cant-tell']) return 2;
+  return 0;
+}
+
+async function cmdInit(flags) {
+  const targetDir = path.resolve(String(flags.path || '.'));
+  const all = Boolean(flags.all);
+  const doClaude = all || Boolean(flags.claude);
+  const doClaudeGlobal = Boolean(flags['claude-global']);
+  const doMcp = all || Boolean(flags.mcp);
+  const doGithub = all || Boolean(flags.github);
+  const doGitHook = all || Boolean(flags['git-hook']);
+
+  const selectedAny = doClaude || doClaudeGlobal || doMcp || doGithub || doGitHook;
+  const actions = [];
+
+  if (doClaude || !selectedAny) {
+    actions.push({ label: 'Claude Code hooks (project)', ...(await installClaudeHooks({ targetDir })) });
+  }
+  if (doClaudeGlobal) {
+    actions.push({ label: 'Claude Code hooks (global)', ...(await installClaudeHooks({ targetDir, global: true })) });
+  }
+  if (doMcp || !selectedAny) {
+    actions.push({ label: 'MCP server config (.mcp.json)', ...(await installMcpConfig({ targetDir })) });
+  }
+  if (doGithub) {
+    actions.push({ label: 'GitHub Actions workflow', ...(await installGitHubWorkflow({ targetDir })) });
+  }
+  if (doGitHook) {
+    actions.push({ label: 'Git pre-commit hook', ...(await installGitPreCommitHook({ targetDir })) });
+  }
+
+  for (const act of actions) {
+    process.stdout.write(`✓ Installed ${act.label}: ${act.path}\n`);
+  }
+  return 0;
+}
+
+async function cmdDoctor(flags) {
+  const root = path.resolve(String(flags.path || '.'));
+  const commandPath = (await loginPath({ shell: process.env.SHELL || '', root, env: process.env })) || process.env.PATH || DEFAULT_PATH;
+  const report = await detectSecurityTools(commandPath, { root });
+  if (flags.json) {
+    process.stdout.write(JSON.stringify(report, null, 2) + '\n');
+    return 0;
+  }
+  process.stdout.write(`Marlowe Toolchain Doctor (${report.availableCount}/${report.totalCount} local CLIs ready)\n\n`);
+  for (const tool of report.tools) {
+    const status = tool.available ? `READY (${tool.version})` : `missing — ${tool.installHint}`;
+    process.stdout.write(`  - ${tool.id.padEnd(13)} ${status}\n`);
+  }
+  return 0;
+}
+
+async function main() {
+  const rawArgs = process.argv.slice(2);
+  if (rawArgs.includes('--version') || rawArgs.includes('-v')) {
+    process.stdout.write(`${pkg.version}\n`);
+    return 0;
+  }
+  if (!rawArgs.length || rawArgs.includes('--help') || rawArgs.includes('-h') || rawArgs[0] === 'help') {
+    process.stdout.write(HELP);
+    return 0;
+  }
+
+  const { positionals, flags } = parseArgs(rawArgs);
+  const sub = positionals[0] || 'scan';
+
+  if (sub === 'scan') return cmdScan(flags);
+  if (sub === 'claude') {
+    const hookType = positionals[1] || '';
+    return runClaudeHookCli(hookType, { strictCantTell: Boolean(flags['strict-cant-tell']) });
+  }
+  if (sub === 'mcp') {
+    const root = path.resolve(String(flags.path || '.'));
+    return startMcpServer({ root });
+  }
+  if (sub === 'init') return cmdInit(flags);
+  if (sub === 'doctor') return cmdDoctor(flags);
+
+  process.stderr.write(`Unknown command "${sub}". Run "marlowe-ci --help" for usage.\n`);
+  return 1;
+}
+
+main()
+  .then(code => {
+    process.exitCode = code;
+  })
+  .catch(err => {
+    process.stderr.write(`[marlowe-ci] ${err.message}\n`);
+    process.exitCode = 1;
+  });

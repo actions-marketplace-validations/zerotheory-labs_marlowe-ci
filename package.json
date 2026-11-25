@@ -1,0 +1,38 @@
+{
+  "name": "@zerotheory-labs/marlowe-ci",
+  "version": "0.1.0",
+  "description": "Marlowe CI / Guard — Source-available security guardrails for Claude Code hooks, MCP agents, GitHub Actions, and pre-commit workflows.",
+  "bin": {
+    "marlowe-ci": "./bin/marlowe-ci.cjs"
+  },
+  "main": "./src/engine/verdict.cjs",
+  "homepage": "https://github.com/zerotheory-labs/marlowe-ci",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zerotheory-labs/marlowe-ci.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zerotheory-labs/marlowe-ci/issues"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.cjs",
+    "self-check": "node bin/marlowe-ci.cjs scan --path . --no-osv"
+  },
+  "keywords": [
+    "security",
+    "appsec",
+    "claude-code",
+    "mcp",
+    "github-actions",
+    "sarif",
+    "ssrf",
+    "ai-security"
+  ],
+  "author": "Zero Theory Labs",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {}
+}

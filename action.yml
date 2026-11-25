@@ -1,0 +1,59 @@
+name: 'Marlowe CI Security Guard'
+description: 'Source-available diff-scoped security verdict (Holds up / Fails / Can''t tell) with SARIF v2.1.0 output and AI-PR guardrail checks.'
+author: 'Zero Theory Labs'
+
+branding:
+  icon: 'shield'
+  color: 'green'
+
+inputs:
+  mode:
+    description: 'Scan mode: "diff" (PR/commit diff) or "full" (entire workspace).'
+    required: false
+    default: 'diff'
+  base-ref:
+    description: 'Git base ref for diff mode (defaults automatically to origin/$GITHUB_BASE_REF on PRs).'
+    required: false
+    default: ''
+  fail-on:
+    description: 'Minimum severity threshold to fail the check: critical, high, medium, or low.'
+    required: false
+    default: 'high'
+  fail-on-cant-tell:
+    description: 'Set to "true" to fail the workflow when the verdict is CAN''T TELL.'
+    required: false
+    default: 'false'
+  query-osv:
+    description: 'Query OSV.dev advisory database when dependency manifests are touched.'
+    required: false
+    default: 'true'
+  scanners:
+    description: 'Optional local CLIs to invoke alongside built-in engines: "none", "auto", or comma-separated list (e.g. "gitleaks,semgrep").'
+    required: false
+    default: 'none'
+  sarif-file:
+    description: 'Output file path for SARIF v2.1.0 results (empty string disables file write).'
+    required: false
+    default: 'marlowe.sarif'
+  comment-pr:
+    description: 'Set to "true" to post or update a sticky verdict comment on pull requests.'
+    required: false
+    default: 'false'
+  github-token:
+    description: 'GitHub token used to post PR comments when comment-pr is true.'
+    required: false
+    default: ''
+
+outputs:
+  verdict:
+    description: 'Result verdict: holds, fails, or cant-tell.'
+  findings-count:
+    description: 'Total normalized findings count.'
+  cant-tell-count:
+    description: 'Count of unresolved Can''t Tell audit items.'
+  sarif-file:
+    description: 'Path to the generated SARIF v2.1.0 report.'
+
+runs:
+  using: 'node20'
+  main: 'src/github-action.cjs'
