@@ -34,7 +34,7 @@ function stripMarloweEntries(list) {
 async function installClaudeHooks({
   targetDir = process.cwd(),
   global = false,
-  commandPrefix = 'npx --yes @zerotheory-labs/marlowe-ci'
+  commandPrefix = 'npx --yes github:zerotheory-labs/marlowe-ci'
 } = {}) {
   const baseDir = global ? os.homedir() : path.resolve(targetDir);
   const settingsPath = path.join(baseDir, '.claude', 'settings.json');
@@ -69,7 +69,7 @@ async function installClaudeHooks({
 async function installMcpConfig({
   targetDir = process.cwd(),
   command = 'npx',
-  args = ['--yes', '@zerotheory-labs/marlowe-ci', 'mcp']
+  args = ['--yes', 'github:zerotheory-labs/marlowe-ci', 'mcp']
 } = {}) {
   const mcpPath = path.join(path.resolve(targetDir), '.mcp.json');
   const existing = await readJsonOrDefault(mcpPath, {});
@@ -129,7 +129,7 @@ async function installGitHubWorkflow({ targetDir = process.cwd() } = {}) {
 
 async function installGitPreCommitHook({
   targetDir = process.cwd(),
-  commandPrefix = 'npx --yes @zerotheory-labs/marlowe-ci'
+  commandPrefix = 'npx --yes github:zerotheory-labs/marlowe-ci'
 } = {}) {
   const absRoot = path.resolve(targetDir);
   const hookDir = path.join(absRoot, '.git', 'hooks');

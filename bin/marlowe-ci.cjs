@@ -23,7 +23,7 @@ Usage:
   marlowe-ci claude <pre-tool|post-tool|stop> [--strict-cant-tell]
                                         Run Claude Code hook handler over stdin/stdout JSON
   marlowe-ci mcp [--path <dir>]         Start stdio JSON-RPC 2.0 MCP security server
-  marlowe-ci init [--claude|--claude-global|--mcp|--github|--git-hook|--all] [--path <dir>]
+  marlowe-ci init [--claude|--claude-global|--mcp|--github|--git-hook|--all] [--path <dir>] [--cmd <prefix>]
                                         Install idempotent configs into a project
   marlowe-ci doctor [--path <dir>]      Inspect installed local security CLIs (9-CLI posture)
 
@@ -113,6 +113,9 @@ async function cmdScan(flags) {
 
 async function cmdInit(flags) {
   const targetDir = path.resolve(String(flags.path || '.'));
+  const commandPrefix = typeof flags.cmd === 'string' && flags.cmd.trim()
+    ? flags.cmd.trim()
+    : 'npx --yes github:zerotheory-labs/marlowe-ci';
   const all = Boolean(flags.all);
   const doClaude = all || Boolean(flags.claude);
   const doClaudeGlobal = Boolean(flags['claude-global']);
@@ -124,10 +127,10 @@ async function cmdInit(flags) {
   const actions = [];
 
   if (doClaude || !selectedAny) {
-    actions.push({ label: 'Claude Code hooks (project)', ...(await installClaudeHooks({ targetDir })) });
+    actions.push({ label: 'Claude Code hooks (project)', ...(await installClaudeHooks({ targetDir, commandPrefix })) });
   }
   if (doClaudeGlobal) {
-    actions.push({ label: 'Claude Code hooks (global)', ...(await installClaudeHooks({ targetDir, global: true })) });
+    actions.push({ label: 'Claude Code hooks (global)', ...(await installClaudeHooks({ targetDir, global: true, commandPrefix })) });
   }
   if (doMcp || !selectedAny) {
     actions.push({ label: 'MCP server config (.mcp.json)', ...(await installMcpConfig({ targetDir })) });
@@ -136,7 +139,7 @@ async function cmdInit(flags) {
     actions.push({ label: 'GitHub Actions workflow', ...(await installGitHubWorkflow({ targetDir })) });
   }
   if (doGitHook) {
-    actions.push({ label: 'Git pre-commit hook', ...(await installGitPreCommitHook({ targetDir })) });
+    actions.push({ label: 'Git pre-commit hook', ...(await installGitPreCommitHook({ targetDir, commandPrefix })) });
   }
 
   for (const act of actions) {

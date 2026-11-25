@@ -38,7 +38,7 @@ Every audit emits one explicit verdict:
 Install `PreToolUse`, `PostToolUse`, and `Stop` hooks into `.claude/settings.json` plus the read-only `stdio` MCP server into `.mcp.json`:
 
 ```sh
-npx --yes @zerotheory-labs/marlowe-ci init --claude --mcp
+npx --yes github:zerotheory-labs/marlowe-ci init --claude --mcp
 ```
 
 What gets enforced automatically inside Claude Code:
@@ -62,7 +62,7 @@ Start over `stdio` (newline-delimited JSON-RPC 2.0):
   "mcpServers": {
     "marlowe": {
       "command": "npx",
-      "args": ["--yes", "@zerotheory-labs/marlowe-ci", "mcp"]
+      "args": ["--yes", "github:zerotheory-labs/marlowe-ci", "mcp"]
     }
   }
 }
@@ -74,7 +74,7 @@ Exposed read-only tools: `marlowe_scan_diff`, `marlowe_scan_workspace`, `marlowe
 
 ### 3. GitHub Actions (SARIF + PR Verdict Comment)
 
-Add `.github/workflows/marlowe-ci.yml` (or run `npx @zerotheory-labs/marlowe-ci init --github`):
+Add `.github/workflows/marlowe-ci.yml` (or run `npx --yes github:zerotheory-labs/marlowe-ci init --github`):
 
 ```yaml
 name: Marlowe CI Security Guard
@@ -115,16 +115,16 @@ jobs:
 
 ```sh
 # Audit working tree & untracked files
-npx @zerotheory-labs/marlowe-ci scan
+npx --yes github:zerotheory-labs/marlowe-ci scan
 
 # Audit staged changes offline before commit
-npx @zerotheory-labs/marlowe-ci scan --staged --no-osv
+npx --yes github:zerotheory-labs/marlowe-ci scan --staged --no-osv
 
 # Install .git/hooks/pre-commit
-npx @zerotheory-labs/marlowe-ci init --git-hook
+npx --yes github:zerotheory-labs/marlowe-ci init --git-hook
 
 # Inspect installed external CLIs (Semgrep, Gitleaks, Trivy, OSV-Scanner, etc.)
-npx @zerotheory-labs/marlowe-ci doctor
+npx --yes github:zerotheory-labs/marlowe-ci doctor
 ```
 
 ---
