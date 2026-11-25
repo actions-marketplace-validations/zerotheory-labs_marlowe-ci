@@ -9,11 +9,11 @@
 </p>
 
 <p>
-  <a href="https://github.com/zerotheory-labs/marlowe-ci/releases/tag/v0.3.0"><img alt="Release v0.3.0" src="https://img.shields.io/badge/release-v0.3.0-3ddc97?style=flat-square&labelColor=181714" /></a>&nbsp;&nbsp;
+  <a href="https://github.com/zerotheory-labs/marlowe-ci/releases/tag/v0.4.0"><img alt="Release v0.4.0" src="https://img.shields.io/badge/release-v0.4.0-3ddc97?style=flat-square&labelColor=181714" /></a>&nbsp;&nbsp;
   <a href="./LICENSE"><img alt="License: PolyForm Noncommercial 1.0.0" src="https://img.shields.io/badge/license-PolyForm_Noncommercial_1.0.0-e5c07b?style=flat-square&labelColor=181714" /></a>&nbsp;&nbsp;
   <a href="./package.json"><img alt="Node.js >= 20" src="https://img.shields.io/badge/node-%3E%3D20-3ddc97?style=flat-square&labelColor=181714" /></a>&nbsp;&nbsp;
   <a href="./package.json"><img alt="Zero Dependencies" src="https://img.shields.io/badge/dependencies-0-3ddc97?style=flat-square&labelColor=181714" /></a>&nbsp;&nbsp;
-  <a href="./.github/workflows/ci.yml"><img alt="13 MCP Tools" src="https://img.shields.io/badge/MCP_tools-13_read--only-3ddc97?style=flat-square&labelColor=181714" /></a>
+  <a href="./server.json"><img alt="13 MCP Tools" src="https://img.shields.io/badge/MCP_tools-13_read--only-3ddc97?style=flat-square&labelColor=181714" /></a>
 </p>
 
 <p>
@@ -31,7 +31,12 @@
 
 AI coding agents mutate files, run shell commands, and open pull requests in seconds. Giving an agent an unguarded shell is a liability — and shallow static scanners drown teams in unreachable alerts.
 
-**Marlowe CI / Guard** (`v0.3.0`) brings [Marlowe](https://github.com/zerotheory-labs/marlowe)'s host-enforced security boundaries directly into **Claude Code hooks**, **MCP clients** (Claude Code, Cursor, Codex CLI, Windsurf, Antigravity), **GitHub Actions (SARIF v2.1.0)**, and **git pre-commit** hooks with zero runtime dependencies and no LLM key required.
+**Marlowe CI / Guard** (`v0.4.0`) brings [Marlowe](https://github.com/zerotheory-labs/marlowe)'s host-enforced security boundaries directly into **Claude Code hooks**, **MCP clients** (Claude Code, Cursor, Codex CLI, Windsurf, Antigravity), **GitHub Actions (SARIF v2.1.0)**, and **git pre-commit** hooks with zero runtime dependencies and no LLM key required.
+
+### What's New in `v0.4.0`
+- **Cross-File Taint Reachability (2-Hop):** Traces imported helper sinks (`./` and `../` ESM/CJS/Python callers up to 2 hops) back to HTTP/DOM/CLI ingress while keeping unimported sibling helpers isolated.
+- **MCP Registry Manifest & npm Package Readiness:** Ships `server.json` (`io.github.zerotheory-labs/marlowe-ci`) and slimmed `package.json` `files` / `prepublishOnly` packaging for `@zerotheory-labs/marlowe-ci`.
+- **Repeatable Linux Shirudo Harness:** [`scripts/verify-linux-shirudo.sh`](./scripts/verify-linux-shirudo.sh) exercises `doctor`, `shirudo status`, static `Beefile` / `*.bpf.c` audits, and TPM checks on Linux hosts.
 
 ---
 
@@ -115,7 +120,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: zerotheory-labs/marlowe-ci@v0.3.0
+      - uses: zerotheory-labs/marlowe-ci@v0.4.0
         with:
           mode: diff
           fail-on: high

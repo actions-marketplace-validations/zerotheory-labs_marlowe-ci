@@ -273,6 +273,7 @@ async function runAudit({
 
   let scannedFiles = 0;
   const manifestPaths = [];
+  const reachCache = new Map();
 
   for (const cand of candidates) {
     signal.throwIfAborted?.();
@@ -330,9 +331,14 @@ async function runAudit({
     }
 
     for (const hit of codeHits) {
-      const reach = await inspectSourceReachability(absRoot, hit.path, hit.line);
+      const reach = await inspectSourceReachability(absRoot, hit.path, hit.line, { cache: reachCache });
       const hasExternalEntry = Boolean(reach?.entryKind) || REACHABLE_STATIC_CATEGORIES.has(hit.category);
       if (hasExternalEntry) {
+        const remediation = reach?.hops > 0 && reach.via?.length
+          ? `Validate or parameterize untrusted input (${reach.entryKind} via ${reach.via.join(' → ')}) before reaching this sink.`
+          : reach?.entryKind
+            ? `Validate or parameterize untrusted input (${reach.entryKind}) before reaching this sink.`
+            : 'Replace the unsafe configuration or cryptographic primitive with a hardened alternative.';
         rawFindings.push({
           title: hit.title,
           severity: hit.severity,
@@ -341,9 +347,7 @@ async function runAudit({
           reachability: 'reachable',
           location: `${hit.path}:${hit.line}`,
           evidence: hit.snippet,
-          remediation: reach?.entryKind
-            ? `Validate or parameterize untrusted input (${reach.entryKind}) before reaching this sink.`
-            : 'Replace the unsafe configuration or cryptographic primitive with a hardened alternative.'
+          remediation
         });
       } else {
         rawFindings.push({

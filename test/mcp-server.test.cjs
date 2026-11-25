@@ -109,7 +109,7 @@ test('MCP stdio server handles initialize, tools/list, and tools/call over newli
   const byId = Object.fromEntries(responses.map(r => [r.id, r]));
 
   assert.equal(byId[1].result.serverInfo.name, 'marlowe-ci');
-  assert.equal(byId[1].result.serverInfo.version, '0.3.0');
+  assert.equal(byId[1].result.serverInfo.version, '0.4.0');
   assert.equal(byId[1].result.protocolVersion, '2025-03-26');
 
   const toolNames = byId[2].result.tools.map(tool => tool.name);
@@ -163,4 +163,14 @@ test('MCP stdio server handles initialize, tools/list, and tools/call over newli
   const attestRes = JSON.parse(byId[13].result.content[0].text);
   assert.equal(attestRes.evidencePath, 'attestation.json');
   assert.ok(['holds', 'fails', 'cant-tell'].includes(attestRes.verdict));
+});
+
+test('server.json MCP Registry manifest matches package.json version and name', async () => {
+  const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '../package.json'), 'utf8'));
+  const manifest = JSON.parse(await fs.readFile(path.resolve(__dirname, '../server.json'), 'utf8'));
+  assert.equal(manifest.name, pkg.mcpName);
+  assert.equal(manifest.version, pkg.version);
+  assert.equal(manifest.packages[0].identifier, pkg.name);
+  assert.equal(manifest.packages[0].version, pkg.version);
+  assert.equal(manifest.packages[0].transport.type, 'stdio');
 });

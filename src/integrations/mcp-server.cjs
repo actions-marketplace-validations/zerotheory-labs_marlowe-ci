@@ -18,7 +18,7 @@ const { runAudit } = require('../engine/verdict.cjs');
 
 const SERVER_INFO = {
   name: 'marlowe-ci',
-  version: '0.3.0'
+  version: '0.4.0'
 };
 
 const MCP_TOOLS = [

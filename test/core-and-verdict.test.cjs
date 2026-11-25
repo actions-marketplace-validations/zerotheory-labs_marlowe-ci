@@ -150,3 +150,84 @@ test('returns CANT TELL when requested external scanner is missing', async t => 
   assert.equal(res.verdict, 'cant-tell');
   assert.ok(res.cantTellReasons.some(r => r.code === 'unknown-scanner'));
 });
+
+test('cross-file reachability traces 1-hop HTTP route importing helper SQLi -> FAILS', async t => {
+  const repo = await makeTempGitRepo();
+  t.after(() => fs.rm(repo, { recursive: true, force: true }));
+
+  await fs.mkdir(path.join(repo, 'src', 'routes'), { recursive: true });
+  await fs.mkdir(path.join(repo, 'src', 'db'), { recursive: true });
+  await fs.writeFile(
+    path.join(repo, 'src', 'routes', 'users.js'),
+    "import { fetchUser } from '../db/queries.js';\nexport async function getUser(req, res) {\n  return fetchUser(req.query.id);\n}\n",
+    'utf8'
+  );
+  const sqli = 'SEL' + 'ECT * FROM users WHERE id = ' + "'${id}'";
+  await fs.writeFile(
+    path.join(repo, 'src', 'db', 'queries.js'),
+    `export function fetchUser(id) {\n  return db.query(\`${sqli}\`);\n}\nexport function ping() { return 'ok'; }\n`,
+    'utf8'
+  );
+
+  const res = await runAudit({ root: repo, mode: 'diff', queryOsv: false });
+  assert.equal(res.verdict, 'fails');
+  const sqliFinding = res.failingFindings.find(f => f.cwe === 'CWE-89');
+  assert.ok(sqliFinding, 'Expected reachable CWE-89 finding from 1-hop importer');
+  assert.equal(sqliFinding.reachability, 'reachable');
+  assert.ok(sqliFinding.remediation.includes('src/routes/users.js'));
+});
+
+test('cross-file reachability traces 2-hop route -> service -> helper SQLi -> FAILS', async t => {
+  const repo = await makeTempGitRepo();
+  t.after(() => fs.rm(repo, { recursive: true, force: true }));
+
+  await fs.mkdir(path.join(repo, 'src', 'routes'), { recursive: true });
+  await fs.mkdir(path.join(repo, 'src', 'services'), { recursive: true });
+  await fs.mkdir(path.join(repo, 'src', 'db'), { recursive: true });
+  await fs.writeFile(
+    path.join(repo, 'src', 'routes', 'orders.js'),
+    "import { createOrder } from '../services/order.js';\nexport function postOrder(req, res) {\n  return createOrder(req.body.item);\n}\n",
+    'utf8'
+  );
+  await fs.writeFile(
+    path.join(repo, 'src', 'services', 'order.js'),
+    "import { insertOrder } from '../db/orders.js';\nexport function createOrder(item) {\n  return insertOrder(item);\n}\n",
+    'utf8'
+  );
+  const sqli = 'INS' + 'ERT INTO orders(item) VALUES (' + "'${item}'" + ')';
+  await fs.writeFile(
+    path.join(repo, 'src', 'db', 'orders.js'),
+    `export function insertOrder(item) {\n  return db.query(\`${sqli}\`);\n}\n`,
+    'utf8'
+  );
+
+  const res = await runAudit({ root: repo, mode: 'diff', queryOsv: false });
+  assert.equal(res.verdict, 'fails');
+  const sqliFinding = res.failingFindings.find(f => f.cwe === 'CWE-89');
+  assert.ok(sqliFinding, 'Expected reachable CWE-89 finding from 2-hop chain');
+  assert.ok(sqliFinding.remediation.includes('src/routes/orders.js'));
+  assert.ok(sqliFinding.remediation.includes('src/services/order.js'));
+});
+
+test('named-import isolation keeps unimported helper SQLi as CANT TELL unverified-sink', async t => {
+  const repo = await makeTempGitRepo();
+  t.after(() => fs.rm(repo, { recursive: true, force: true }));
+
+  await fs.mkdir(path.join(repo, 'src', 'routes'), { recursive: true });
+  await fs.mkdir(path.join(repo, 'src', 'db'), { recursive: true });
+  await fs.writeFile(
+    path.join(repo, 'src', 'routes', 'health.js'),
+    "import { ping } from '../db/queries.js';\nexport function getHealth(req, res) {\n  return ping(req.query.v);\n}\n",
+    'utf8'
+  );
+  const domSink = 'el.' + 'innerHTML = raw;';
+  await fs.writeFile(
+    path.join(repo, 'src', 'db', 'queries.js'),
+    `export function ping() { return 'pong'; }\nexport function unusedUnsafe(el, raw) {\n  ${domSink}\n}\n`,
+    'utf8'
+  );
+
+  const res = await runAudit({ root: repo, mode: 'diff', queryOsv: false, failOn: 'high' });
+  assert.equal(res.verdict, 'cant-tell');
+  assert.ok(res.cantTellReasons.some(r => r.code === 'unverified-sink'));
+});

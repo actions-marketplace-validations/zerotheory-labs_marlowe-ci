@@ -1,6 +1,7 @@
 {
   "name": "@zerotheory-labs/marlowe-ci",
-  "version": "0.3.0",
+  "version": "0.4.0",
+  "mcpName": "io.github.zerotheory-labs/marlowe-ci",
   "description": "Marlowe CI / Guard — Source-available security guardrails for Claude Code hooks, MCP agents, GitHub Actions, and pre-commit workflows.",
   "bin": {
     "marlowe-ci": "./bin/marlowe-ci.cjs"
@@ -14,9 +15,22 @@
   "bugs": {
     "url": "https://github.com/zerotheory-labs/marlowe-ci/issues"
   },
+  "files": [
+    "bin/",
+    "src/",
+    "action.yml",
+    "server.json",
+    "README.md",
+    "LICENSE",
+    "SECURITY.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "test": "node --test test/*.test.cjs",
-    "self-check": "node bin/marlowe-ci.cjs scan --path . --no-osv"
+    "self-check": "node bin/marlowe-ci.cjs scan --path . --no-osv",
+    "prepublishOnly": "npm test && npm run self-check"
   },
   "keywords": [
     "security",
