@@ -1,13 +1,29 @@
 <div align="center">
 
-# Marlowe CI / Guard
+<p>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/assets/marlowe-ci-banner-dark.svg" />
+    <source media="(prefers-color-scheme: light)" srcset="./docs/assets/marlowe-ci-banner-light.svg" />
+    <img alt="Marlowe CI. — Guardrails for AI agents and pull requests. By Zero Theory Labs." src="./docs/assets/marlowe-ci-banner-dark.svg" width="100%" />
+  </picture>
+</p>
 
-**Zero-dependency security guardrails for Claude Code, MCP agents, GitHub Actions, and local git workflows.**
-*By [Zero Theory Labs](https://zerotheorylabs.com/marlowe) — companion to [Marlowe Desktop](https://github.com/zerotheory-labs/marlowe).*
+<p>
+  <a href="https://github.com/zerotheory-labs/marlowe-ci/releases/tag/v0.1.1"><img alt="Release v0.1.1" src="https://img.shields.io/badge/release-v0.1.1-3ddc97?style=flat-square&labelColor=181714" /></a>&nbsp;&nbsp;
+  <a href="./LICENSE"><img alt="License: PolyForm Noncommercial 1.0.0" src="https://img.shields.io/badge/license-PolyForm_Noncommercial_1.0.0-e5c07b?style=flat-square&labelColor=181714" /></a>&nbsp;&nbsp;
+  <a href="./package.json"><img alt="Node.js >= 20" src="https://img.shields.io/badge/node-%3E%3D20-3ddc97?style=flat-square&labelColor=181714" /></a>&nbsp;&nbsp;
+  <a href="./package.json"><img alt="Zero Dependencies" src="https://img.shields.io/badge/dependencies-0-3ddc97?style=flat-square&labelColor=181714" /></a>&nbsp;&nbsp;
+  <a href="./.github/workflows/ci.yml"><img alt="Tests Passing" src="https://img.shields.io/badge/tests-14_unit_%C2%B7_integration_passing-3ddc97?style=flat-square&labelColor=181714" /></a>
+</p>
 
-[![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/license-PolyForm_Noncommercial_1.0.0-e5c07b?style=flat-square&labelColor=181714)](./LICENSE)
-[![Node.js >= 20](https://img.shields.io/badge/node-%3E%3D20-3ddc97?style=flat-square&labelColor=181714)](./package.json)
-[![Zero Dependencies](https://img.shields.io/badge/dependencies-0-3ddc97?style=flat-square&labelColor=181714)](./package.json)
+<p>
+  <a href="#1-claude-code-hooks--mcp-one-command"><b>Claude Code</b></a> &nbsp;·&nbsp;
+  <a href="#2-universal-mcp-server-cursor-codex-windsurf-antigravity"><b>MCP Server</b></a> &nbsp;·&nbsp;
+  <a href="#3-github-actions-sarif--pr-verdict-comment"><b>GitHub Action</b></a> &nbsp;·&nbsp;
+  <a href="https://github.com/zerotheory-labs/marlowe"><b>Marlowe Desktop</b></a> &nbsp;·&nbsp;
+  <a href="./SECURITY.md"><b>Security Policy</b></a> &nbsp;·&nbsp;
+  <a href="./LICENSE"><b>License</b></a>
+</p>
 
 </div>
 
@@ -108,6 +124,22 @@ jobs:
         with:
           sarif_file: marlowe.sarif
 ```
+
+#### Live PR Verdict Example
+
+Real sticky comment posted automatically on [`zerotheory-labs/marlowe#1`](https://github.com/zerotheory-labs/marlowe/pull/1):
+
+> ## 🟡 Marlowe CI Verdict: **CAN'T TELL**
+>
+> > Evidence is incomplete or contains unverified sinks — never rounded to a pass.
+>
+> - **Mode:** `diff` · **Files inspected:** `2` · **Threshold:** `high` · **Duration:** `18ms`
+>
+> _No security findings detected._
+>
+> ### Can't Tell Items (1)
+>
+> - `sensitive-surface-untested` — Security-sensitive surface modified without any test changes (`.github/workflows/marlowe-ci.yml`).
 
 ---
 
