@@ -6,6 +6,7 @@ const os = require('node:os');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const { runAction } = require('../src/github-action.cjs');
+const pkg = require('../package.json');
 
 const execFileAsync = promisify(execFile);
 const CLI = path.resolve(__dirname, '../bin/marlowe-ci.cjs');
@@ -41,7 +42,7 @@ test('marlowe-ci init --all is idempotent and preserves existing user settings',
   assert.equal(mcp.mcpServers.marlowe.args.includes('mcp'), true);
 
   const workflow = await fs.readFile(path.join(dir, '.github', 'workflows', 'marlowe-ci.yml'), 'utf8');
-  assert.ok(workflow.includes('zerotheory-labs/marlowe-ci@v0.4.0'));
+  assert.ok(workflow.includes(`zerotheory-labs/marlowe-ci@v${pkg.version}`));
   assert.ok(workflow.includes('github/codeql-action/upload-sarif@v4'));
 
   const preCommit = await fs.readFile(path.join(dir, '.git', 'hooks', 'pre-commit'), 'utf8');

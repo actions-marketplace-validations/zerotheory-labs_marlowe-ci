@@ -24,6 +24,7 @@ const { getGitDiff } = require('./git-diff.cjs');
 const { detectGuardrailRegressions } = require('./regressions.cjs');
 const { loadBaseline, applyBaseline } = require('./baseline.cjs');
 const { isBeefilePath, isBpfSourcePath, auditBeefile, auditBpfUpatchSource } = require('../core/shirudo.cjs');
+const { scanAgentGuard } = require('../core/agent-guard.cjs');
 
 const SEVERITY_RANK = { critical: 4, high: 3, medium: 2, low: 1, info: 0 };
 const SAFE_MEDIA_RE = /\.(?:png|jpe?g|webp|gif|svg|ico|mp4|webm|mov|woff2?|ttf|otf|pdf|lock)$/i;
@@ -118,14 +119,37 @@ function scanTextLines(relPath, text, { allowedLines = null } = {}) {
   return { secretHits, codeHits };
 }
 
-function checkPackageJsonAddedRisk(relPath, addedLines = []) {
+const DEP_SECTION_KEYS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'];
+
+function checkPackageJsonAddedRisk(relPath, fullText, addedLines = []) {
   const cantTell = [];
+  let parsed;
+  try {
+    parsed = JSON.parse(String(fullText || ''));
+  } catch {
+    return cantTell;
+  }
+  if (!parsed || typeof parsed !== 'object') return cantTell;
+
+  const riskySpecs = new Map();
+  for (const secKey of DEP_SECTION_KEYS) {
+    const sec = parsed[secKey];
+    if (!sec || typeof sec !== 'object' || Array.isArray(sec)) continue;
+    for (const [pkg, spec] of Object.entries(sec)) {
+      if (typeof spec !== 'string') continue;
+      if (spec === '*' || spec === 'latest' || /^(?:https?:\/\/|git\+|github:)/i.test(spec)) {
+        riskySpecs.set(`${pkg}\0${spec}`, { pkg, spec });
+      }
+    }
+  }
+  if (!riskySpecs.size) return cantTell;
+
   for (const entry of addedLines) {
     const line = String(entry.text || '');
     const m = /"([@a-zA-Z0-9._/-]+)"\s*:\s*"([^"]+)"/.exec(line);
     if (!m) continue;
     const [, pkg, spec] = m;
-    if (spec === '*' || spec === 'latest' || /^(?:https?:\/\/|git\+|github:)/i.test(spec)) {
+    if (riskySpecs.has(`${pkg}\0${spec}`)) {
       cantTell.push({
         code: 'unpinned-dependency-added',
         path: relPath,
@@ -314,11 +338,19 @@ async function runAudit({
     scannedFiles++;
 
     if (baseName === 'package.json' && cand.addedLines?.length) {
-      cantTellReasons.push(...checkPackageJsonAddedRisk(cand.relPath, cand.addedLines));
+      cantTellReasons.push(...checkPackageJsonAddedRisk(cand.relPath, text, cand.addedLines));
     }
 
     const { secretHits, codeHits } = scanTextLines(cand.relPath, text, { allowedLines: cand.allowedLines });
     rawFindings.push(...secretHits);
+
+    const agentRes = scanAgentGuard(cand.relPath, text, {
+      allowedLines: cand.allowedLines,
+      addedLines: cand.addedLines,
+      mode
+    });
+    rawFindings.push(...agentRes.findings);
+    cantTellReasons.push(...agentRes.cantTellReasons);
 
     if (isBeefilePath(cand.relPath)) {
       const bfRes = await auditBeefile(cand.relPath, text, { root: absRoot });

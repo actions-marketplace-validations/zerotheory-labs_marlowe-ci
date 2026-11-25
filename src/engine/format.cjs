@@ -1,3 +1,5 @@
+const { version: PKG_VERSION } = require('../../package.json');
+
 const VERDICT_META = {
   holds: {
     badge: 'HOLDS UP',
@@ -20,7 +22,7 @@ function formatTerminalReport(result) {
   const meta = VERDICT_META[result.verdict] || VERDICT_META['cant-tell'];
   const lines = [
     ``,
-    `Zero Theory Labs · Marlowe CI / Guard v0.4.0`,
+    `Zero Theory Labs · Marlowe CI / Guard v${PKG_VERSION}`,
     `Verdict: ${meta.badge} (${result.mode} mode · ${result.scannedFiles} file(s) inspected in ${result.durationMs}ms)`,
     `${meta.summary}`,
     ``

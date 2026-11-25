@@ -5,6 +5,14 @@ const os = require('node:os');
 const MARLOWE_CLAUDE_MARKER = 'marlowe-ci claude';
 const GIT_HOOK_START = '# --- marlowe-ci-pre-commit start ---';
 const GIT_HOOK_END = '# --- marlowe-ci-pre-commit end ---';
+const CODEX_MCP_START = '# --- marlowe-ci-mcp start ---';
+const CODEX_MCP_END = '# --- marlowe-ci-mcp end ---';
+
+function parseCommandPrefix(commandPrefix = 'npx --yes @zerotheory-labs/marlowe-ci') {
+  const parts = String(commandPrefix || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return { command: 'npx', baseArgs: ['--yes', '@zerotheory-labs/marlowe-ci'] };
+  return { command: parts[0], baseArgs: parts.slice(1) };
+}
 
 async function readJsonOrDefault(filePath, fallback = {}) {
   try {
@@ -104,7 +112,7 @@ jobs:
 
       - name: Run Marlowe CI / Guard
         id: marlowe
-        uses: zerotheory-labs/marlowe-ci@v0.4.0
+        uses: zerotheory-labs/marlowe-ci@v0.5.0
         with:
           mode: diff
           fail-on: high
@@ -170,9 +178,118 @@ async function installGitPreCommitHook({
   return { path: hookPath };
 }
 
+const AGENT_GUARD_RULE_TEXT = `# Marlowe Guardrails
+
+1. Verify untrusted inputs (HTTP, URL, DOM, CLI) and parameterize SQL/shell calls — never interpolate untrusted data.
+2. Never read, print, or transmit \`.env*\`, \`.ssh/\`, \`.aws/\`, \`.shirudo/\`, or \`*.pem\`/\`*.key\` files.
+3. Run \`marlowe_scan_diff\` (or \`npx --yes @zerotheory-labs/marlowe-ci scan\`) before finishing security-sensitive edits.
+4. Confirm any \`CAN'T TELL\` finding instead of adding inline scanner suppression comments.
+`;
+
+async function installCursorConfig({
+  targetDir = process.cwd(),
+  command = 'npx',
+  args = ['--yes', '@zerotheory-labs/marlowe-ci', 'mcp']
+} = {}) {
+  const absRoot = path.resolve(targetDir);
+  const mcpPath = path.join(absRoot, '.cursor', 'mcp.json');
+  const existing = await readJsonOrDefault(mcpPath, {});
+  const servers = existing.mcpServers && typeof existing.mcpServers === 'object' ? { ...existing.mcpServers } : {};
+  servers.marlowe = { command, args };
+  existing.mcpServers = servers;
+  await writeJsonPretty(mcpPath, existing);
+
+  const rulePath = path.join(absRoot, '.cursor', 'rules', 'marlowe-guard.mdc');
+  await fs.mkdir(path.dirname(rulePath), { recursive: true });
+  await fs.writeFile(
+    rulePath,
+    `---\ndescription: Marlowe CI read-only security guardrails\nalwaysApply: true\n---\n\n${AGENT_GUARD_RULE_TEXT}`,
+    'utf8'
+  );
+  return { path: mcpPath, rulePath };
+}
+
+async function installVscodeConfig({
+  targetDir = process.cwd(),
+  command = 'npx',
+  args = ['--yes', '@zerotheory-labs/marlowe-ci', 'mcp']
+} = {}) {
+  const absRoot = path.resolve(targetDir);
+  const mcpPath = path.join(absRoot, '.vscode', 'mcp.json');
+  const existing = await readJsonOrDefault(mcpPath, {});
+  const servers = existing.servers && typeof existing.servers === 'object' ? { ...existing.servers } : {};
+  servers.marlowe = { type: 'stdio', command, args };
+  existing.servers = servers;
+  await writeJsonPretty(mcpPath, existing);
+  return { path: mcpPath };
+}
+
+async function installCodexConfig({
+  targetDir = process.cwd(),
+  command = 'npx',
+  args = ['--yes', '@zerotheory-labs/marlowe-ci', 'mcp']
+} = {}) {
+  const absRoot = path.resolve(targetDir);
+  const configPath = path.join(absRoot, '.codex', 'config.toml');
+  await fs.mkdir(path.dirname(configPath), { recursive: true });
+
+  let existing = '';
+  try {
+    existing = await fs.readFile(configPath, 'utf8');
+  } catch (err) {
+    if (!err || err.code !== 'ENOENT') throw err;
+  }
+
+  const serializedArgs = JSON.stringify(args);
+  const block = [
+    CODEX_MCP_START,
+    '[mcp_servers.marlowe]',
+    `command = ${JSON.stringify(command)}`,
+    `args = ${serializedArgs}`,
+    CODEX_MCP_END
+  ].join('\n');
+
+  const blockRe = new RegExp(`${CODEX_MCP_START}[\\s\\S]*?${CODEX_MCP_END}`, 'm');
+  let updated;
+  if (blockRe.test(existing)) {
+    updated = existing.replace(blockRe, block);
+  } else if (existing.trim()) {
+    updated = `${existing.trimEnd()}\n\n${block}\n`;
+  } else {
+    updated = `${block}\n`;
+  }
+
+  await fs.writeFile(configPath, updated, 'utf8');
+  return { path: configPath };
+}
+
+async function installWindsurfConfig({
+  targetDir = process.cwd(),
+  command = 'npx',
+  args = ['--yes', '@zerotheory-labs/marlowe-ci', 'mcp']
+} = {}) {
+  const absRoot = path.resolve(targetDir);
+  const mcpPath = path.join(absRoot, '.windsurf', 'mcp.json');
+  const existing = await readJsonOrDefault(mcpPath, {});
+  const servers = existing.mcpServers && typeof existing.mcpServers === 'object' ? { ...existing.mcpServers } : {};
+  servers.marlowe = { command, args };
+  existing.mcpServers = servers;
+  await writeJsonPretty(mcpPath, existing);
+
+  const rulePath = path.join(absRoot, '.windsurf', 'rules', 'marlowe-guard.md');
+  await fs.mkdir(path.dirname(rulePath), { recursive: true });
+  await fs.writeFile(rulePath, `---\ntrigger: always_on\n---\n\n${AGENT_GUARD_RULE_TEXT}`, 'utf8');
+  return { path: mcpPath, rulePath };
+}
+
 module.exports = {
+  parseCommandPrefix,
   installClaudeHooks,
   installMcpConfig,
+  installCursorConfig,
+  installVscodeConfig,
+  installCodexConfig,
+  installWindsurfConfig,
   installGitHubWorkflow,
   installGitPreCommitHook
 };

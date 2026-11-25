@@ -4,6 +4,7 @@ const { isPrivateOrReservedIp, parseTargetEndpoint, checkTargetScopeSync } = req
 const { isProtectedSegment, resolveWithinRoot, readRegularTextFile, loadScopeConfig } = require('../core/fs-safe.cjs');
 const { shannonEntropy } = require('../core/cyber-analyzers.cjs');
 const { isBeefilePath, isBpfSourcePath, auditBeefile, auditBpfUpatchSource } = require('../core/shirudo.cjs');
+const { hasHiddenUnicodeControls, scanAgentGuard } = require('../core/agent-guard.cjs');
 const { scanTextLines, runAudit } = require('../engine/verdict.cjs');
 
 const FILE_READ_TOOLS = new Set(['Read', 'View']);
@@ -141,6 +142,9 @@ async function handlePreToolUse(payload) {
     if (CATASTROPHIC_RM_RE.test(cmd)) {
       return preToolDecision('deny', 'Catastrophic recursive delete targeting /, ~, or $HOME is blocked.');
     }
+    if (hasHiddenUnicodeControls(cmd)) {
+      return preToolDecision('deny', 'Hidden bidirectional/tag/zero-width Unicode control characters (Trojan Source) in shell command are blocked.');
+    }
     if (PIPE_TO_SHELL_RE.test(cmd)) {
       return preToolDecision('deny', 'Piping remote curl/wget output directly into a shell is blocked.');
     }
@@ -228,6 +232,14 @@ async function handlePostToolUse(payload) {
     for (const ct of bpfRes.cantTellReasons.slice(0, 3)) {
       warnings.push(`• [SHIRUDO CAN'T TELL · ${ct.code}] ${ct.message}`);
     }
+  }
+
+  const agentGuardRes = scanAgentGuard(resolved.relPath, text);
+  for (const f of agentGuardRes.findings.slice(0, 5)) {
+    warnings.push(`• [AGENT-GUARD ${f.cwe || f.category.toUpperCase()} ${f.severity.toUpperCase()}] ${f.title} at ${f.location}: ${f.evidence}`);
+  }
+  for (const ct of agentGuardRes.cantTellReasons.slice(0, 3)) {
+    warnings.push(`• [AGENT-GUARD CAN'T TELL · ${ct.code}] ${ct.message}`);
   }
 
   if (!warnings.length) return null;

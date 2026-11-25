@@ -8,8 +8,13 @@ const { formatTerminalReport, formatMarkdownSummary } = require('../src/engine/f
 const { runClaudeHookCli } = require('../src/integrations/claude-hooks.cjs');
 const { startMcpServer } = require('../src/integrations/mcp-server.cjs');
 const {
+  parseCommandPrefix,
   installClaudeHooks,
   installMcpConfig,
+  installCursorConfig,
+  installVscodeConfig,
+  installCodexConfig,
+  installWindsurfConfig,
   installGitHubWorkflow,
   installGitPreCommitHook
 } = require('../src/integrations/init.cjs');
@@ -45,7 +50,7 @@ Usage:
   marlowe-ci claude <pre-tool|post-tool|stop> [--strict-cant-tell]
                                         Run Claude Code hook handler over stdin/stdout JSON
   marlowe-ci mcp [--path <dir>]         Start stdio JSON-RPC 2.0 MCP security server (13 tools)
-  marlowe-ci init [--claude|--claude-global|--mcp|--github|--git-hook|--all] [--path <dir>] [--cmd <prefix>]
+  marlowe-ci init [--claude|--claude-global|--mcp|--cursor|--vscode|--codex|--windsurf|--all-agents|--github|--git-hook|--all] [--path <dir>] [--cmd <prefix>]
                                         Install idempotent configs into a project
   marlowe-ci doctor [--path <dir>]      Inspect installed local security CLIs (10-CLI posture)
 
@@ -142,14 +147,22 @@ async function cmdInit(flags) {
   const commandPrefix = typeof flags.cmd === 'string' && flags.cmd.trim()
     ? flags.cmd.trim()
     : 'npx --yes @zerotheory-labs/marlowe-ci';
+  const { command: mcpCommand, baseArgs } = parseCommandPrefix(commandPrefix);
+  const mcpArgs = [...baseArgs, 'mcp'];
+
   const all = Boolean(flags.all);
-  const doClaude = all || Boolean(flags.claude);
+  const allAgents = Boolean(flags['all-agents']);
+  const doClaude = all || allAgents || Boolean(flags.claude);
   const doClaudeGlobal = Boolean(flags['claude-global']);
-  const doMcp = all || Boolean(flags.mcp);
+  const doMcp = all || allAgents || Boolean(flags.mcp);
+  const doCursor = allAgents || Boolean(flags.cursor);
+  const doVscode = allAgents || Boolean(flags.vscode);
+  const doCodex = allAgents || Boolean(flags.codex);
+  const doWindsurf = allAgents || Boolean(flags.windsurf);
   const doGithub = all || Boolean(flags.github);
   const doGitHook = all || Boolean(flags['git-hook']);
 
-  const selectedAny = doClaude || doClaudeGlobal || doMcp || doGithub || doGitHook;
+  const selectedAny = doClaude || doClaudeGlobal || doMcp || doCursor || doVscode || doCodex || doWindsurf || doGithub || doGitHook;
   const actions = [];
 
   if (doClaude || !selectedAny) {
@@ -159,7 +172,21 @@ async function cmdInit(flags) {
     actions.push({ label: 'Claude Code hooks (global)', ...(await installClaudeHooks({ targetDir, global: true, commandPrefix })) });
   }
   if (doMcp || !selectedAny) {
-    actions.push({ label: 'MCP server config (.mcp.json)', ...(await installMcpConfig({ targetDir })) });
+    actions.push({ label: 'MCP server config (.mcp.json)', ...(await installMcpConfig({ targetDir, command: mcpCommand, args: mcpArgs })) });
+  }
+  if (doCursor) {
+    const res = await installCursorConfig({ targetDir, command: mcpCommand, args: mcpArgs });
+    actions.push({ label: 'Cursor MCP & rules', path: `${res.path} + ${res.rulePath}` });
+  }
+  if (doVscode) {
+    actions.push({ label: 'VS Code MCP config (.vscode/mcp.json)', ...(await installVscodeConfig({ targetDir, command: mcpCommand, args: mcpArgs })) });
+  }
+  if (doCodex) {
+    actions.push({ label: 'Codex CLI MCP config (.codex/config.toml)', ...(await installCodexConfig({ targetDir, command: mcpCommand, args: mcpArgs })) });
+  }
+  if (doWindsurf) {
+    const res = await installWindsurfConfig({ targetDir, command: mcpCommand, args: mcpArgs });
+    actions.push({ label: 'Windsurf MCP & rules', path: `${res.path} + ${res.rulePath}` });
   }
   if (doGithub) {
     actions.push({ label: 'GitHub Actions workflow', ...(await installGitHubWorkflow({ targetDir })) });

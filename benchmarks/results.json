@@ -1,0 +1,317 @@
+{
+  "version": "0.5.0",
+  "generatedAt": "2026-11-25T18:05:07.255Z",
+  "nodeVersion": "v26.12.0",
+  "platform": "darwin-arm64",
+  "workspace": "ephemeral-temp-repos",
+  "summary": {
+    "totalScenarios": 24,
+    "exactMatches": 24,
+    "exactAccuracyPct": 100,
+    "failsPrecisionPct": 100,
+    "failsRecallPct": 100,
+    "failsF1Pct": 100,
+    "falsePositives": 0,
+    "falseNegatives": 0,
+    "cleanScenarios": 8,
+    "cleanFalsePositives": 0,
+    "cleanFalsePositiveRatePct": 0,
+    "cantTellExact": 4,
+    "cantTellTotal": 4,
+    "p50Ms": 18,
+    "p95Ms": 22.45,
+    "meanMs": 18.95
+  },
+  "domains": [
+    {
+      "domain": "AppSec & Reachability",
+      "total": 6,
+      "passed": 6,
+      "accuracyPct": 100,
+      "p50Ms": 18.35,
+      "p95Ms": 30.32
+    },
+    {
+      "domain": "Secrets & Masking",
+      "total": 3,
+      "passed": 3,
+      "accuracyPct": 100,
+      "p50Ms": 17.76,
+      "p95Ms": 17.97
+    },
+    {
+      "domain": "Regressions & Precision",
+      "total": 5,
+      "passed": 5,
+      "accuracyPct": 100,
+      "p50Ms": 18.69,
+      "p95Ms": 22.45
+    },
+    {
+      "domain": "Agent Guard",
+      "total": 5,
+      "passed": 5,
+      "accuracyPct": 100,
+      "p50Ms": 18.45,
+      "p95Ms": 19.17
+    },
+    {
+      "domain": "Shirudo eBPF & Attest",
+      "total": 3,
+      "passed": 3,
+      "accuracyPct": 100,
+      "p50Ms": 18.45,
+      "p95Ms": 18.86
+    },
+    {
+      "domain": "Binaries & Refactors",
+      "total": 2,
+      "passed": 2,
+      "accuracyPct": 100,
+      "p50Ms": 17.3,
+      "p95Ms": 17.86
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "appsec-sqli-1hop",
+      "domain": "AppSec & Reachability",
+      "expected": "fails",
+      "actual": "fails",
+      "exact": true,
+      "durationMs": 30.32,
+      "findingsCount": 1,
+      "cantTellCount": 0
+    },
+    {
+      "id": "appsec-sqli-2hop",
+      "domain": "AppSec & Reachability",
+      "expected": "fails",
+      "actual": "fails",
+      "exact": true,
+      "durationMs": 19.63,
+      "findingsCount": 1,
+      "cantTellCount": 0
+    },
+    {
+      "id": "appsec-cmd-injection",
+      "domain": "AppSec & Reachability",
+      "expected": "fails",
+      "actual": "fails",
+      "exact": true,
+      "durationMs": 17.89,
+      "findingsCount": 1,
+      "cantTellCount": 0
+    },
+    {
+      "id": "appsec-unimported-dom-sink",
+      "domain": "AppSec & Reachability",
+      "expected": "cant-tell",
+      "actual": "cant-tell",
+      "exact": true,
+      "durationMs": 18.48,
+      "findingsCount": 1,
+      "cantTellCount": 1
+    },
+    {
+      "id": "appsec-clean-parameterized-sql",
+      "domain": "AppSec & Reachability",
+      "expected": "holds",
+      "actual": "holds",
+      "exact": true,
+      "durationMs": 18.35,
+      "findingsCount": 0,
+      "cantTellCount": 0
+    },
+    {
+      "id": "appsec-clean-utility",
+      "domain": "AppSec & Reachability",
+      "expected": "holds",
+      "actual": "holds",
+      "exact": true,
+      "durationMs": 17.48,
+      "findingsCount": 0,
+      "cantTellCount": 0
+    },
+    {
+      "id": "secrets-aws-key",
+      "domain": "Secrets & Masking",
+      "expected": "fails",
+      "actual": "fails",
+      "exact": true,
+      "durationMs": 17.97,
+      "findingsCount": 1,
+      "cantTellCount": 0
+    },
+    {
+      "id": "secrets-github-pat",
+      "domain": "Secrets & Masking",
+      "expected": "fails",
+      "actual": "fails",
+      "exact": true,
+      "durationMs": 17.39,
+      "findingsCount": 1,
+      "cantTellCount": 0
+    },
+    {
+      "id": "secrets-env-example-clean",
+      "domain": "Secrets & Masking",
+      "expected": "holds",
+      "actual": "holds",
+      "exact": true,
+      "durationMs": 17.76,
+      "findingsCount": 0,
+      "cantTellCount": 0
+    },
+    {
+      "id": "regression-tls-disable",
+      "domain": "Regressions & Precision",
+      "expected": "fails",
+      "actual": "fails",
+      "exact": true,
+      "durationMs": 17.49,
+      "findingsCount": 2,
+      "cantTellCount": 0
+    },
+    {
+      "id": "regression-suppression-auth",
+      "domain": "Regressions & Precision",
+      "expected": "cant-tell",
+      "actual": "cant-tell",
+      "exact": true,
+      "durationMs": 20.35,
+      "findingsCount": 0,
+      "cantTellCount": 2
+    },
+    {
+      "id": "regression-control-removed",
+      "domain": "Regressions & Precision",
+      "expected": "cant-tell",
+      "actual": "cant-tell",
+      "exact": true,
+      "durationMs": 22.45,
+      "findingsCount": 0,
+      "cantTellCount": 1
+    },
+    {
+      "id": "dogfood-pkg-repo-url-clean",
+      "domain": "Regressions & Precision",
+      "expected": "holds",
+      "actual": "holds",
+      "exact": true,
+      "durationMs": 18.69,
+      "findingsCount": 0,
+      "cantTellCount": 0
+    },
+    {
+      "id": "dogfood-server-json-prose-clean",
+      "domain": "Regressions & Precision",
+      "expected": "holds",
+      "actual": "holds",
+      "exact": true,
+      "durationMs": 17.7,
+      "findingsCount": 0,
+      "cantTellCount": 0
+    },
+    {
+      "id": "agent-trojan-source-bidi",
+      "domain": "Agent Guard",
+      "expected": "fails",
+      "actual": "fails",
+      "exact": true,
+      "durationMs": 19.17,
+      "findingsCount": 1,
+      "cantTellCount": 0
+    },
+    {
+      "id": "agent-unicode-tag-smuggling",
+      "domain": "Agent Guard",
+      "expected": "fails",
+      "actual": "fails",
+      "exact": true,
+      "durationMs": 18.45,
+      "findingsCount": 1,
+      "cantTellCount": 0
+    },
+    {
+      "id": "agent-covert-prompt-injection",
+      "domain": "Agent Guard",
+      "expected": "fails",
+      "actual": "fails",
+      "exact": true,
+      "durationMs": 18.84,
+      "findingsCount": 1,
+      "cantTellCount": 0
+    },
+    {
+      "id": "agent-npm-postinstall-rugpull",
+      "domain": "Agent Guard",
+      "expected": "fails",
+      "actual": "fails",
+      "exact": true,
+      "durationMs": 17.9,
+      "findingsCount": 1,
+      "cantTellCount": 0
+    },
+    {
+      "id": "agent-benign-security-docs",
+      "domain": "Agent Guard",
+      "expected": "holds",
+      "actual": "holds",
+      "exact": true,
+      "durationMs": 17.96,
+      "findingsCount": 0,
+      "cantTellCount": 0
+    },
+    {
+      "id": "shirudo-bpf-unsafe-helper",
+      "domain": "Shirudo eBPF & Attest",
+      "expected": "fails",
+      "actual": "fails",
+      "exact": true,
+      "durationMs": 18,
+      "findingsCount": 1,
+      "cantTellCount": 0
+    },
+    {
+      "id": "shirudo-beefile-insecure-registry",
+      "domain": "Shirudo eBPF & Attest",
+      "expected": "fails",
+      "actual": "fails",
+      "exact": true,
+      "durationMs": 18.86,
+      "findingsCount": 1,
+      "cantTellCount": 1
+    },
+    {
+      "id": "shirudo-clean-scoped-upatch",
+      "domain": "Shirudo eBPF & Attest",
+      "expected": "holds",
+      "actual": "holds",
+      "exact": true,
+      "durationMs": 18.45,
+      "findingsCount": 0,
+      "cantTellCount": 0
+    },
+    {
+      "id": "binary-elf-unverified",
+      "domain": "Binaries & Refactors",
+      "expected": "cant-tell",
+      "actual": "cant-tell",
+      "exact": true,
+      "durationMs": 17.3,
+      "findingsCount": 0,
+      "cantTellCount": 1
+    },
+    {
+      "id": "clean-ts-refactor",
+      "domain": "Binaries & Refactors",
+      "expected": "holds",
+      "actual": "holds",
+      "exact": true,
+      "durationMs": 17.86,
+      "findingsCount": 0,
+      "cantTellCount": 0
+    }
+  ]
+}

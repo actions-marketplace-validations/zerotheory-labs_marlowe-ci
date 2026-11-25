@@ -9,6 +9,7 @@ const { promisify } = require('node:util');
 
 const execFileAsync = promisify(execFile);
 const CLI = path.resolve(__dirname, '../bin/marlowe-ci.cjs');
+const pkg = require('../package.json');
 
 test('MCP stdio server handles initialize, tools/list, and tools/call over newline-delimited JSON-RPC 2.0', async t => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'marlowe-mcp-'));
@@ -109,7 +110,7 @@ test('MCP stdio server handles initialize, tools/list, and tools/call over newli
   const byId = Object.fromEntries(responses.map(r => [r.id, r]));
 
   assert.equal(byId[1].result.serverInfo.name, 'marlowe-ci');
-  assert.equal(byId[1].result.serverInfo.version, '0.4.0');
+  assert.equal(byId[1].result.serverInfo.version, pkg.version);
   assert.equal(byId[1].result.protocolVersion, '2025-03-26');
 
   const toolNames = byId[2].result.tools.map(tool => tool.name);

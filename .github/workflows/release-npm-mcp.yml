@@ -1,0 +1,49 @@
+name: Release to npm & MCP Registry (OIDC)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  release-npm-and-mcp:
+    name: Test, Bench, Publish npm & MCP Registry
+    runs-on: ubuntu-latest
+    env:
+      MCP_PUBLISHER_VERSION: v1.8.16
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Run unit tests & benchmark suite
+        run: |
+          npm test
+          npm run bench
+
+      - name: Publish to npm via Trusted Publishing (OIDC)
+        run: npm publish --provenance --access public
+
+      - name: Download and verify mcp-publisher
+        run: |
+          set -euo pipefail
+          archive="mcp-publisher_linux_amd64.tar.gz"
+          checksums="registry_${MCP_PUBLISHER_VERSION#v}_checksums.txt"
+          base_url="https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}"
+          curl --fail --location --silent --show-error "${base_url}/${archive}" -o "${archive}"
+          curl --fail --location --silent --show-error "${base_url}/${checksums}" -o "${checksums}"
+          sha256sum --ignore-missing --check "${checksums}"
+          tar -xzf "${archive}" mcp-publisher
+          chmod +x ./mcp-publisher
+
+      - name: Publish server.json to MCP Registry via GitHub OIDC
+        run: |
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish

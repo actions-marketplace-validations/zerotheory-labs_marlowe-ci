@@ -16,9 +16,11 @@ const { inspectShirudoTarget, verifyShirudoAttestation } = require('../core/shir
 const { loginPath, DEFAULT_PATH } = require('../core/toolchain.cjs');
 const { runAudit } = require('../engine/verdict.cjs');
 
+const { version: PACKAGE_VERSION } = require('../../package.json');
+
 const SERVER_INFO = {
   name: 'marlowe-ci',
-  version: '0.4.0'
+  version: PACKAGE_VERSION
 };
 
 const MCP_TOOLS = [

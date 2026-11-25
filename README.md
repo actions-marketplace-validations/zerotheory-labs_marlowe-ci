@@ -9,8 +9,9 @@
 </p>
 
 <p>
-  <a href="https://github.com/zerotheory-labs/marlowe-ci/releases/tag/v0.4.0"><img alt="Release v0.4.0" src="https://img.shields.io/badge/release-v0.4.0-3ddc97?style=flat-square&labelColor=181714" /></a>&nbsp;&nbsp;
+  <a href="https://github.com/zerotheory-labs/marlowe-ci/releases/tag/v0.5.0"><img alt="Release v0.5.0" src="https://img.shields.io/badge/release-v0.5.0-3ddc97?style=flat-square&labelColor=181714" /></a>&nbsp;&nbsp;
   <a href="https://www.npmjs.com/package/@zerotheory-labs/marlowe-ci"><img alt="npm @zerotheory-labs/marlowe-ci" src="https://img.shields.io/badge/npm-%40zerotheory--labs%2Fmarlowe--ci-3ddc97?style=flat-square&labelColor=181714" /></a>&nbsp;&nbsp;
+  <a href="https://registry.modelcontextprotocol.io/v0/servers?search=io.github.zerotheory-labs/marlowe-ci"><img alt="MCP Registry io.github.zerotheory-labs/marlowe-ci" src="https://img.shields.io/badge/MCP_Registry-io.github.zerotheory--labs-3ddc97?style=flat-square&labelColor=181714" /></a>&nbsp;&nbsp;
   <a href="./LICENSE"><img alt="License: PolyForm Noncommercial 1.0.0" src="https://img.shields.io/badge/license-PolyForm_Noncommercial_1.0.0-e5c07b?style=flat-square&labelColor=181714" /></a>&nbsp;&nbsp;
   <a href="./package.json"><img alt="Node.js >= 20" src="https://img.shields.io/badge/node-%3E%3D20-3ddc97?style=flat-square&labelColor=181714" /></a>&nbsp;&nbsp;
   <a href="./package.json"><img alt="Zero Dependencies" src="https://img.shields.io/badge/dependencies-0-3ddc97?style=flat-square&labelColor=181714" /></a>&nbsp;&nbsp;
@@ -32,12 +33,13 @@
 
 AI coding agents mutate files, run shell commands, and open pull requests in seconds. Giving an agent an unguarded shell is a liability — and shallow static scanners drown teams in unreachable alerts.
 
-**Marlowe CI / Guard** (`v0.4.0`) brings [Marlowe](https://github.com/zerotheory-labs/marlowe)'s host-enforced security boundaries directly into **Claude Code hooks**, **MCP clients** (Claude Code, Cursor, Codex CLI, Windsurf, Antigravity), **GitHub Actions (SARIF v2.1.0)**, and **git pre-commit** hooks with zero runtime dependencies and no LLM key required.
+**Marlowe CI / Guard** (`v0.5.0`) brings [Marlowe](https://github.com/zerotheory-labs/marlowe)'s host-enforced security boundaries directly into **Claude Code hooks**, **MCP clients** (Claude Code, Cursor, VS Code, Codex CLI, Windsurf, Antigravity), **GitHub Actions (SARIF v2.1.0)**, and **git pre-commit** hooks with zero runtime dependencies and no LLM key required.
 
-### What's New in `v0.4.0`
-- **Cross-File Taint Reachability (2-Hop):** Traces imported helper sinks (`./` and `../` ESM/CJS/Python callers up to 2 hops) back to HTTP/DOM/CLI ingress while keeping unimported sibling helpers isolated.
-- **MCP Registry Manifest & Live npm Package:** Published on npm as [`@zerotheory-labs/marlowe-ci`](https://www.npmjs.com/package/@zerotheory-labs/marlowe-ci) alongside `server.json` (`io.github.zerotheory-labs/marlowe-ci`) and slimmed `package.json` `files` / `prepublishOnly` packaging.
-- **Repeatable Linux Shirudo Harness:** [`scripts/verify-linux-shirudo.sh`](./scripts/verify-linux-shirudo.sh) exercises `doctor`, `shirudo status`, static `Beefile` / `*.bpf.c` audits, and TPM checks on Linux hosts.
+### What's New in `v0.5.0`
+- **`agent-guard` (AI Prompt Injection, Trojan Source & Supply-Chain Rug-Pulls):** Detects Unicode bidirectional overrides (`U+202E`, `CWE-116`), Unicode Tag-block/zero-width smuggling, indirect prompt injection inside `CLAUDE.md`/`.cursorrules`/HTML comments (`CWE-74`), malicious `package.json` `preinstall`/`postinstall` scripts (`CWE-506`), and untrusted MCP server configs — wired into diffs, `PreToolUse` Bash checks, and `PostToolUse` feedback.
+- **One-Command Multi-Agent Installers:** Added `init --cursor`, `--vscode`, `--codex`, `--windsurf`, and `--all-agents` (writing idempotent MCP configs plus `.cursor/rules/marlowe-guard.mdc` and `.windsurf/rules/marlowe-guard.md` without overwriting existing entries).
+- **Dogfooding Precision Fixes & OIDC Releases:** Scoped `package.json` specifier checks strictly to dependency blocks (ignoring `repository.url`), exempted non-code docs/manifests from removed-control prose checks, and added [`.github/workflows/release-npm-mcp.yml`](./.github/workflows/release-npm-mcp.yml) for OIDC publishing.
+- **Reproducible 24-Scenario Benchmark Suite (`npm run bench`):** Measures exact 3-state accuracy (`24/24`, `100%`), `0%` clean false-positive rate (`0/8`), and `18ms` median / `22.45ms` p95 latency in [`benchmarks/results.json`](./benchmarks/results.json).
 
 ---
 
@@ -50,6 +52,26 @@ Every audit emits one explicit verdict:
 | **`HOLDS UP`** | Diff/workspace checked; no exposed secrets, reachable sinks, CVEs, or unverified guard gaps. | `0` |
 | **`FAILS`** | Confirmed hardcoded secret, reachable CWE sink, TLS bypass, or vulnerable dependency $\ge$ `--fail-on`. | `1` |
 | **`CAN'T TELL`** | Unknown is never rounded to a pass — triggers on unverified local sinks without external ingress, security/auth files edited without tests, scanner suppression directives (`nosemgrep`, `gitleaks:allow`), high-entropy binaries, or unavailable OSV/CLI checks. | `0` (`2` with `--fail-on-cant-tell`) |
+
+---
+
+## Recorded Benchmark Scorecard (`npm run bench`)
+
+Executed offline via [`benchmarks/run-benchmarks.cjs`](./benchmarks/run-benchmarks.cjs) against 24 ephemeral Git diff repositories (`Node.js v26.12.0`, `darwin-arm64`, `0` skipped; saved in [`benchmarks/results.json`](./benchmarks/results.json)):
+
+- **Exact 3-State Verdict Accuracy:** `24/24` (**`100%`**)
+- **`FAILS` Precision / Recall / F1:** `100% / 100% / 100%` (`FP = 0`, `FN = 0`)
+- **Clean / Benign False-Positive Rate:** **`0%`** (`0/8`)
+- **Latency (`p50` / `p95` / `mean`):** **`18ms` / `22.45ms` / `18.95ms`**
+
+| Domain | Passed | Accuracy | p50 | p95 |
+| :--- | :---: | :---: | :---: | :---: |
+| AppSec & Cross-File Reachability | `6/6` | `100%` | `18.35ms` | `30.32ms` |
+| Secrets & Masking | `3/3` | `100%` | `17.76ms` | `17.97ms` |
+| Guardrail Regressions & Precision | `5/5` | `100%` | `18.69ms` | `22.45ms` |
+| Agent Guard (Prompt Injection / Trojan / Rug-Pull) | `5/5` | `100%` | `18.45ms` | `19.17ms` |
+| Shirudo eBPF & Attestation | `3/3` | `100%` | `18.45ms` | `18.86ms` |
+| Binaries & Clean Refactors | `2/2` | `100%` | `17.3ms` | `17.86ms` |
 
 ---
 
@@ -75,9 +97,22 @@ What gets enforced automatically inside Claude Code:
 
 ---
 
-### 2. Universal MCP Server (Cursor, Codex, Windsurf, Antigravity)
+### 2. Universal MCP Server (Cursor, VS Code, Codex, Windsurf, Antigravity)
 
-Start over `stdio` (newline-delimited JSON-RPC 2.0):
+Configure supported editors & coding agents in one command (preserves existing entries):
+
+```sh
+# Install across Cursor, VS Code, Codex CLI, Windsurf, Claude Code & .mcp.json:
+npx --yes @zerotheory-labs/marlowe-ci init --all-agents
+
+# Or target a single client:
+npx --yes @zerotheory-labs/marlowe-ci init --cursor
+npx --yes @zerotheory-labs/marlowe-ci init --vscode
+npx --yes @zerotheory-labs/marlowe-ci init --codex
+npx --yes @zerotheory-labs/marlowe-ci init --windsurf
+```
+
+Or wire `stdio` manually (listed on the [official MCP Registry](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.zerotheory-labs/marlowe-ci) as `io.github.zerotheory-labs/marlowe-ci`):
 
 ```json
 {
@@ -121,7 +156,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: zerotheory-labs/marlowe-ci@v0.4.0
+      - uses: zerotheory-labs/marlowe-ci@v0.5.0
         with:
           mode: diff
           fail-on: high

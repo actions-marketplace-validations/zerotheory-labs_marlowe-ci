@@ -20,6 +20,8 @@ const TEST_FILE_RE = /(?:^|\/)(?:tests?|__tests__)\/|\.(?:test|spec)\.[cm]?[jt]s
 const SKIP_TEST_RE = /\b(?:it|test|describe)\.skip\s*\(|\bx(?:it|describe)\s*\(|@pytest\.mark\.skip|\bt\.Skip\s*\(/;
 const SECURITY_TEST_HINT_RE = /\b(?:auth|login|session|token|jwt|rbac|acl|csrf|xss|ssrf|sqli|tls|scope|security|secret|permission|shirudo|upatch|ebpf|bpf|attest|tpm)\b/i;
 const SENSITIVE_SURFACE_PATH_RE = /(?:^|\/)(?:beefile|auth|login|session|oauth|jwt|rbac|acl|crypto|tls|scope|security|middleware|dockerfile|containerfile|\.github\/workflows\/).*/i;
+const NON_CODE_DOC_RE = /\.(?:md|mdx|rst|txt)$/i;
+const METADATA_JSON_RE = /(?:^|\/)(?:server|package|package-lock|tsconfig|jsconfig|composer|manifest)\.json$/i;
 
 function isTestFilePath(relPath) {
   return TEST_FILE_RE.test(String(relPath || ''));
@@ -94,7 +96,7 @@ function detectGuardrailRegressions(diffFiles = []) {
       }
     }
 
-    if (!isTest && removed.length) {
+    if (!isTest && !NON_CODE_DOC_RE.test(relPath) && !METADATA_JSON_RE.test(relPath) && removed.length) {
       const addedBlob = added.map(l => l.text).join('\n');
       for (const ctrl of SECURITY_CONTROLS) {
         const removedMatch = removed.find(r => !isCommentOrRuleLine(r.text) && ctrl.re.test(r.text));
