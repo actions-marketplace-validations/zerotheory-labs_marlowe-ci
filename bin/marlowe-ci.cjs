@@ -141,7 +141,7 @@ async function cmdInit(flags) {
   const targetDir = path.resolve(String(flags.path || '.'));
   const commandPrefix = typeof flags.cmd === 'string' && flags.cmd.trim()
     ? flags.cmd.trim()
-    : 'npx --yes github:zerotheory-labs/marlowe-ci';
+    : 'npx --yes @zerotheory-labs/marlowe-ci';
   const all = Boolean(flags.all);
   const doClaude = all || Boolean(flags.claude);
   const doClaudeGlobal = Boolean(flags['claude-global']);

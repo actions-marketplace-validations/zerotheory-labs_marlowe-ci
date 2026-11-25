@@ -10,6 +10,7 @@
 
 <p>
   <a href="https://github.com/zerotheory-labs/marlowe-ci/releases/tag/v0.4.0"><img alt="Release v0.4.0" src="https://img.shields.io/badge/release-v0.4.0-3ddc97?style=flat-square&labelColor=181714" /></a>&nbsp;&nbsp;
+  <a href="https://www.npmjs.com/package/@zerotheory-labs/marlowe-ci"><img alt="npm @zerotheory-labs/marlowe-ci" src="https://img.shields.io/badge/npm-%40zerotheory--labs%2Fmarlowe--ci-3ddc97?style=flat-square&labelColor=181714" /></a>&nbsp;&nbsp;
   <a href="./LICENSE"><img alt="License: PolyForm Noncommercial 1.0.0" src="https://img.shields.io/badge/license-PolyForm_Noncommercial_1.0.0-e5c07b?style=flat-square&labelColor=181714" /></a>&nbsp;&nbsp;
   <a href="./package.json"><img alt="Node.js >= 20" src="https://img.shields.io/badge/node-%3E%3D20-3ddc97?style=flat-square&labelColor=181714" /></a>&nbsp;&nbsp;
   <a href="./package.json"><img alt="Zero Dependencies" src="https://img.shields.io/badge/dependencies-0-3ddc97?style=flat-square&labelColor=181714" /></a>&nbsp;&nbsp;
@@ -35,7 +36,7 @@ AI coding agents mutate files, run shell commands, and open pull requests in sec
 
 ### What's New in `v0.4.0`
 - **Cross-File Taint Reachability (2-Hop):** Traces imported helper sinks (`./` and `../` ESM/CJS/Python callers up to 2 hops) back to HTTP/DOM/CLI ingress while keeping unimported sibling helpers isolated.
-- **MCP Registry Manifest & npm Package Readiness:** Ships `server.json` (`io.github.zerotheory-labs/marlowe-ci`) and slimmed `package.json` `files` / `prepublishOnly` packaging for `@zerotheory-labs/marlowe-ci`.
+- **MCP Registry Manifest & Live npm Package:** Published on npm as [`@zerotheory-labs/marlowe-ci`](https://www.npmjs.com/package/@zerotheory-labs/marlowe-ci) alongside `server.json` (`io.github.zerotheory-labs/marlowe-ci`) and slimmed `package.json` `files` / `prepublishOnly` packaging.
 - **Repeatable Linux Shirudo Harness:** [`scripts/verify-linux-shirudo.sh`](./scripts/verify-linux-shirudo.sh) exercises `doctor`, `shirudo status`, static `Beefile` / `*.bpf.c` audits, and TPM checks on Linux hosts.
 
 ---
@@ -59,7 +60,7 @@ Every audit emits one explicit verdict:
 Install `PreToolUse`, `PostToolUse`, and `Stop` hooks into `.claude/settings.json` plus the read-only `stdio` MCP server into `.mcp.json`:
 
 ```sh
-npx --yes github:zerotheory-labs/marlowe-ci init --claude --mcp
+npx --yes @zerotheory-labs/marlowe-ci init --claude --mcp
 ```
 
 What gets enforced automatically inside Claude Code:
@@ -83,7 +84,7 @@ Start over `stdio` (newline-delimited JSON-RPC 2.0):
   "mcpServers": {
     "marlowe": {
       "command": "npx",
-      "args": ["--yes", "github:zerotheory-labs/marlowe-ci", "mcp"]
+      "args": ["--yes", "@zerotheory-labs/marlowe-ci", "mcp"]
     }
   }
 }
@@ -99,7 +100,7 @@ Exposed read-only tools (**13 total** across AppSec, Authorized Recon, DFIR & Sh
 
 ### 3. GitHub Actions (SARIF + PR Verdict Comment)
 
-Add `.github/workflows/marlowe-ci.yml` (or run `npx --yes github:zerotheory-labs/marlowe-ci init --github`):
+Add `.github/workflows/marlowe-ci.yml` (or run `npx --yes @zerotheory-labs/marlowe-ci init --github`):
 
 ```yaml
 name: Marlowe CI Security Guard
@@ -156,27 +157,27 @@ Real sticky comment posted automatically on [`zerotheory-labs/marlowe#1`](https:
 
 ```sh
 # Audit working tree & untracked files
-npx --yes github:zerotheory-labs/marlowe-ci scan
+npx --yes @zerotheory-labs/marlowe-ci scan
 
 # Audit staged changes offline before commit
-npx --yes github:zerotheory-labs/marlowe-ci scan --staged --no-osv
+npx --yes @zerotheory-labs/marlowe-ci scan --staged --no-osv
 
 # Acknowledge non-secret legacy findings (secrets are never baselined)
-npx --yes github:zerotheory-labs/marlowe-ci baseline --no-osv
+npx --yes @zerotheory-labs/marlowe-ci baseline --no-osv
 
 # ScopeGate-enforced Recon & O_NOFOLLOW DFIR
-npx --yes github:zerotheory-labs/marlowe-ci recon http https://staging.example.com
-npx --yes github:zerotheory-labs/marlowe-ci dfir logs ./access.log
-npx --yes github:zerotheory-labs/marlowe-ci dfir iocs ./incident.txt
+npx --yes @zerotheory-labs/marlowe-ci recon http https://staging.example.com
+npx --yes @zerotheory-labs/marlowe-ci dfir logs ./access.log
+npx --yes @zerotheory-labs/marlowe-ci dfir iocs ./incident.txt
 
 # Shirudo Beefile / Plain BPF C audit & TPM 2.0 quote verification
-npx --yes github:zerotheory-labs/marlowe-ci shirudo audit ./shields
-npx --yes github:zerotheory-labs/marlowe-ci shirudo attest ./evidence.json --nonce deadbeef
-npx --yes github:zerotheory-labs/marlowe-ci shirudo status
+npx --yes @zerotheory-labs/marlowe-ci shirudo audit ./shields
+npx --yes @zerotheory-labs/marlowe-ci shirudo attest ./evidence.json --nonce deadbeef
+npx --yes @zerotheory-labs/marlowe-ci shirudo status
 
 # Install .git/hooks/pre-commit & inspect 10 local security CLIs
-npx --yes github:zerotheory-labs/marlowe-ci init --git-hook
-npx --yes github:zerotheory-labs/marlowe-ci doctor
+npx --yes @zerotheory-labs/marlowe-ci init --git-hook
+npx --yes @zerotheory-labs/marlowe-ci doctor
 ```
 
 ---

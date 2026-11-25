@@ -4,13 +4,13 @@
   "mcpName": "io.github.zerotheory-labs/marlowe-ci",
   "description": "Marlowe CI / Guard — Source-available security guardrails for Claude Code hooks, MCP agents, GitHub Actions, and pre-commit workflows.",
   "bin": {
-    "marlowe-ci": "./bin/marlowe-ci.cjs"
+    "marlowe-ci": "bin/marlowe-ci.cjs"
   },
   "main": "./src/engine/verdict.cjs",
   "homepage": "https://github.com/zerotheory-labs/marlowe-ci",
   "repository": {
     "type": "git",
-    "url": "https://github.com/zerotheory-labs/marlowe-ci.git"
+    "url": "git+https://github.com/zerotheory-labs/marlowe-ci.git"
   },
   "bugs": {
     "url": "https://github.com/zerotheory-labs/marlowe-ci/issues"
