@@ -43,12 +43,18 @@ inputs:
     description: 'GitHub token used to post PR comments when comment-pr is true.'
     required: false
     default: ''
+  baseline-file:
+    description: 'Optional baseline file path relative to workspace root (secrets are never baselined).'
+    required: false
+    default: '.marlowe-baseline.json'
 
 outputs:
   verdict:
     description: 'Result verdict: holds, fails, or cant-tell.'
   findings-count:
-    description: 'Total normalized findings count.'
+    description: 'Total active findings count.'
+  baselined-count:
+    description: 'Count of acknowledged non-secret findings suppressed by baseline.'
   cant-tell-count:
     description: 'Count of unresolved Can''t Tell audit items.'
   sarif-file:

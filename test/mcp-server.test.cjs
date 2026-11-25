@@ -18,6 +18,15 @@ test('MCP stdio server handles initialize, tools/list, and tools/call over newli
   await execFileAsync('git', ['config', 'user.email', 'ci@example.com'], { cwd: dir });
   await execFileAsync('git', ['config', 'user.name', 'Marlowe Test'], { cwd: dir });
   await fs.writeFile(path.join(dir, 'hello.js'), 'export const hello = "world";\n', 'utf8');
+  await fs.writeFile(
+    path.join(dir, 'incident.log'),
+    [
+      '198.51.100.7 - - "GET /search?q=1%20union%20select%20password HTTP/1.1" 500',
+      '203.0.113.8 - - "GET /meta?u=http://169.254.169.254/latest/meta-data HTTP/1.1" 403',
+      'Defanged IOC hxxps://bad[.]example[.]net/drop CVE-2026-1234 T1190'
+    ].join('\n') + '\n',
+    'utf8'
+  );
   await fs.writeFile(path.join(dir, '.marlowe-scope.json'), JSON.stringify({ targets: ['https://example.com'] }), 'utf8');
   await execFileAsync('git', ['add', '.'], { cwd: dir });
   await execFileAsync('git', ['commit', '-m', 'init'], { cwd: dir });
@@ -29,7 +38,12 @@ test('MCP stdio server handles initialize, tools/list, and tools/call over newli
     { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'marlowe_scan_diff', arguments: { query_osv: false } } },
     { jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'marlowe_triage_artifact', arguments: { path: 'hello.js' } } },
     { jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'marlowe_check_scope', arguments: { target: 'http://169.254.169.254/latest' } } },
-    { jsonrpc: '2.0', id: 6, method: 'tools/call', params: { name: 'marlowe_doctor', arguments: {} } }
+    { jsonrpc: '2.0', id: 6, method: 'tools/call', params: { name: 'marlowe_doctor', arguments: {} } },
+    { jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'marlowe_analyze_logs', arguments: { path: 'incident.log' } } },
+    { jsonrpc: '2.0', id: 8, method: 'tools/call', params: { name: 'marlowe_extract_iocs', arguments: { path: 'incident.log' } } },
+    { jsonrpc: '2.0', id: 9, method: 'tools/call', params: { name: 'marlowe_inspect_http', arguments: { url: 'http://169.254.169.254/latest/meta-data' } } },
+    { jsonrpc: '2.0', id: 10, method: 'tools/call', params: { name: 'marlowe_inspect_tls', arguments: { target: '10.0.0.1:443' } } },
+    { jsonrpc: '2.0', id: 11, method: 'tools/call', params: { name: 'marlowe_dns_recon', arguments: { domain: 'unauthorized.example.org' } } }
   ];
 
   const responses = await new Promise((resolve, reject) => {
@@ -52,11 +66,12 @@ test('MCP stdio server handles initialize, tools/list, and tools/call over newli
     child.stdin.end();
   });
 
-  // notifications/initialized produces no response; 6 request IDs -> 6 JSON lines
-  assert.equal(responses.length, 6);
+  // notifications/initialized produces no response; 11 request IDs -> 11 JSON lines
+  assert.equal(responses.length, 11);
   const byId = Object.fromEntries(responses.map(r => [r.id, r]));
 
   assert.equal(byId[1].result.serverInfo.name, 'marlowe-ci');
+  assert.equal(byId[1].result.serverInfo.version, '0.2.0');
   assert.equal(byId[1].result.protocolVersion, '2025-03-26');
 
   const toolNames = byId[2].result.tools.map(tool => tool.name);
@@ -66,7 +81,12 @@ test('MCP stdio server handles initialize, tools/list, and tools/call over newli
     'marlowe_audit_dependencies',
     'marlowe_triage_artifact',
     'marlowe_check_scope',
-    'marlowe_doctor'
+    'marlowe_doctor',
+    'marlowe_inspect_http',
+    'marlowe_inspect_tls',
+    'marlowe_dns_recon',
+    'marlowe_analyze_logs',
+    'marlowe_extract_iocs'
   ]);
 
   const scanRes = JSON.parse(byId[3].result.content[0].text);
@@ -81,4 +101,18 @@ test('MCP stdio server handles initialize, tools/list, and tools/call over newli
 
   const doctorRes = JSON.parse(byId[6].result.content[0].text);
   assert.equal(doctorRes.totalCount, 9);
+
+  const logsRes = JSON.parse(byId[7].result.content[0].text);
+  assert.ok(logsRes.signatureCounts['sqli-probe'] >= 1);
+  assert.ok(logsRes.signatureCounts['ssrf-metadata'] >= 1);
+
+  const iocsRes = JSON.parse(byId[8].result.content[0].text);
+  assert.ok(iocsRes.iocs.cves.includes('CVE-2026-1234'));
+  assert.ok(iocsRes.iocs.mitreTechniques.includes('T1190'));
+  assert.ok(iocsRes.iocs.urls.some(u => u.includes('https://bad.example.net/drop')));
+
+  // ScopeGate rejects out-of-scope / SSRF targets on all 3 Recon tools
+  assert.equal(byId[9].result.isError, true);
+  assert.equal(byId[10].result.isError, true);
+  assert.equal(byId[11].result.isError, true);
 });

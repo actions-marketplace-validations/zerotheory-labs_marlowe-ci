@@ -50,7 +50,7 @@ async function upsertPrComment({ token, repository, prNumber, body, fetchImpl = 
   const headers = {
     Authorization: `Bearer ${token}`,
     Accept: 'application/vnd.github+json',
-    'User-Agent': 'Marlowe-CI/0.1.2',
+    'User-Agent': 'Marlowe-CI/0.2.0',
     'X-GitHub-Api-Version': '2022-11-28'
   };
 
@@ -106,6 +106,7 @@ async function runAction({ fetchImpl = fetch } = {}) {
   const sarifFile = getInput('sarif-file', 'marlowe.sarif');
   const commentPr = getInput('comment-pr', 'false').toLowerCase() === 'true';
   const token = getInput('github-token', '') || process.env.GITHUB_TOKEN || '';
+  const baselineRaw = getInput('baseline-file', '.marlowe-baseline.json');
 
   const baseRef = mode === 'diff' ? await resolvePrBaseRef(workspace, explicitBase) : '';
   const scanners = scannersRaw.split(',').map(s => s.trim()).filter(Boolean);
@@ -116,7 +117,9 @@ async function runAction({ fetchImpl = fetch } = {}) {
     baseRef,
     failOn,
     queryOsv,
-    scanners
+    scanners,
+    baselinePath: baselineRaw === '.marlowe-baseline.json' ? '' : baselineRaw,
+    useBaseline: baselineRaw !== 'none' && baselineRaw !== 'false'
   });
 
   process.stdout.write(formatTerminalReport(result));
@@ -133,6 +136,7 @@ async function runAction({ fetchImpl = fetch } = {}) {
   await setOutputs({
     verdict: result.verdict,
     'findings-count': result.findings.length,
+    'baselined-count': result.baselinedCount || 0,
     'cant-tell-count': result.cantTellReasons.length,
     'sarif-file': resolvedSarifPath || sarifFile
   });

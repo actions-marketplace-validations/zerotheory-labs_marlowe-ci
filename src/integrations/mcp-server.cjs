@@ -2,14 +2,22 @@ const readline = require('node:readline');
 const path = require('node:path');
 const { assertTargetInScope } = require('../core/cyber-scope.cjs');
 const { resolveWithinRoot, walkWorkspace, readRegularTextFile, loadScopeConfig } = require('../core/fs-safe.cjs');
-const { triageArtifact, auditDependencies } = require('../core/cyber-analyzers.cjs');
+const {
+  triageArtifact,
+  auditDependencies,
+  inspectHttpSecurity,
+  inspectTls,
+  dnsRecon,
+  extractIocs,
+  analyzeLogs
+} = require('../core/cyber-analyzers.cjs');
 const { detectSecurityTools } = require('../core/cyber-toolchain.cjs');
 const { loginPath, DEFAULT_PATH } = require('../core/toolchain.cjs');
 const { runAudit } = require('../engine/verdict.cjs');
 
 const SERVER_INFO = {
   name: 'marlowe-ci',
-  version: '0.1.2'
+  version: '0.2.0'
 };
 
 const MCP_TOOLS = [
@@ -82,6 +90,68 @@ const MCP_TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {},
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'marlowe_inspect_http',
+    description: 'Inspect HTTP security headers (CSP, HSTS, X-Frame-Options, nosniff, CORS) and Set-Cookie flags on an Authorized Scope URL using non-redirecting GET or HEAD.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: 'Full http:// or https:// URL inside .marlowe-scope.json.' },
+        method: { type: 'string', enum: ['GET', 'HEAD'], description: 'HTTP method (default: GET).' }
+      },
+      required: ['url'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'marlowe_inspect_tls',
+    description: 'Inspect TLS protocol version, cipher suite, certificate chain trust, SANs, and expiration on an Authorized Scope host or host:port.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        target: { type: 'string', description: 'Hostname or host:port inside .marlowe-scope.json.' }
+      },
+      required: ['target'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'marlowe_dns_recon',
+    description: 'Query A, AAAA, CNAME, MX, NS, TXT, and DMARC records for an Authorized Scope domain and evaluate SPF/DMARC spoofing defenses.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        domain: { type: 'string', description: 'Domain name inside .marlowe-scope.json.' }
+      },
+      required: ['domain'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'marlowe_analyze_logs',
+    description: 'Analyze JSONL, HTTP access, or syslog/auth logs inside the workspace for brute-force spikes, traversal/SQLi/XSS/JNDI/SSRF probes, scanner signatures, and top IPs.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Workspace-relative log file path.' },
+        filter: { type: 'string', description: 'Optional case-insensitive substring filter.' }
+      },
+      required: ['path'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'marlowe_extract_iocs',
+    description: 'Extract and classify Indicators of Compromise (public/private IPs, domains, defanged URLs, hashes, CVEs, and MITRE ATT&CK IDs) from a workspace file or log.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Workspace-relative file path.' }
+      },
+      required: ['path'],
       additionalProperties: false
     }
   }
@@ -179,6 +249,34 @@ async function executeMcpTool(name, args = {}, { root = process.cwd() } = {}) {
     case 'marlowe_doctor': {
       const commandPath = (await loginPath({ shell: process.env.SHELL || '', root, env: process.env })) || process.env.PATH || DEFAULT_PATH;
       return detectSecurityTools(commandPath, { root });
+    }
+
+    case 'marlowe_inspect_http': {
+      if (typeof args.url !== 'string' || !args.url.trim()) throw new Error('url is required.');
+      const method = typeof args.method === 'string' ? args.method : 'GET';
+      return inspectHttpSecurity(args.url.trim(), { method, scope }, signal);
+    }
+
+    case 'marlowe_inspect_tls': {
+      if (typeof args.target !== 'string' || !args.target.trim()) throw new Error('target is required.');
+      return inspectTls(args.target.trim(), { scope }, signal);
+    }
+
+    case 'marlowe_dns_recon': {
+      if (typeof args.domain !== 'string' || !args.domain.trim()) throw new Error('domain is required.');
+      return dnsRecon(args.domain.trim(), { scope }, signal);
+    }
+
+    case 'marlowe_analyze_logs': {
+      if (typeof args.path !== 'string' || !args.path.trim()) throw new Error('path is required.');
+      const resolved = await resolveWithinRoot(root, args.path.trim());
+      return analyzeLogs(resolved.fullPath, resolved.relPath, { filter: typeof args.filter === 'string' ? args.filter : '' }, signal);
+    }
+
+    case 'marlowe_extract_iocs': {
+      if (typeof args.path !== 'string' || !args.path.trim()) throw new Error('path is required.');
+      const resolved = await resolveWithinRoot(root, args.path.trim());
+      return extractIocs(resolved.fullPath, resolved.relPath, signal);
     }
 
     default:

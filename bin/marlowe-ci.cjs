@@ -3,6 +3,7 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { runAudit } = require('../src/engine/verdict.cjs');
+const { writeBaseline } = require('../src/engine/baseline.cjs');
 const { formatTerminalReport, formatMarkdownSummary } = require('../src/engine/format.cjs');
 const { runClaudeHookCli } = require('../src/integrations/claude-hooks.cjs');
 const { startMcpServer } = require('../src/integrations/mcp-server.cjs');
@@ -12,6 +13,15 @@ const {
   installGitHubWorkflow,
   installGitPreCommitHook
 } = require('../src/integrations/init.cjs');
+const { resolveWithinRoot, loadScopeConfig } = require('../src/core/fs-safe.cjs');
+const {
+  inspectHttpSecurity,
+  inspectTls,
+  dnsRecon,
+  triageArtifact,
+  analyzeLogs,
+  extractIocs
+} = require('../src/core/cyber-analyzers.cjs');
 const { detectSecurityTools } = require('../src/core/cyber-toolchain.cjs');
 const { loginPath, DEFAULT_PATH } = require('../src/core/toolchain.cjs');
 const pkg = require('../package.json');
@@ -20,20 +30,27 @@ const HELP = `Marlowe CI / Guard v${pkg.version} — Zero Theory Labs
 
 Usage:
   marlowe-ci scan [options]             Run diff or full workspace security audit
+  marlowe-ci baseline [options]         Record non-secret findings into .marlowe-baseline.json
+  marlowe-ci recon <http|tls|dns> <target> [--path <dir>] [--method GET|HEAD] [--json]
+                                        Run ScopeGate-enforced HTTP, TLS, or DNS inspection
+  marlowe-ci dfir <triage|logs|iocs> <file> [--path <dir>] [--filter <str>] [--json]
+                                        Run read-only O_NOFOLLOW forensic triage/log/IOC analysis
   marlowe-ci claude <pre-tool|post-tool|stop> [--strict-cant-tell]
                                         Run Claude Code hook handler over stdin/stdout JSON
-  marlowe-ci mcp [--path <dir>]         Start stdio JSON-RPC 2.0 MCP security server
+  marlowe-ci mcp [--path <dir>]         Start stdio JSON-RPC 2.0 MCP security server (11 tools)
   marlowe-ci init [--claude|--claude-global|--mcp|--github|--git-hook|--all] [--path <dir>] [--cmd <prefix>]
                                         Install idempotent configs into a project
   marlowe-ci doctor [--path <dir>]      Inspect installed local security CLIs (9-CLI posture)
 
 Scan options:
   --path <dir>          Workspace directory (default: .)
-  --mode <diff|full>    Audit mode (default: diff, or full if --path is a non-git folder with --mode full)
+  --mode <diff|full>    Audit mode (default: diff)
   --staged              Audit staged git index changes only (for pre-commit)
   --base <ref>          Compare HEAD against git base ref (e.g. origin/main)
   --fail-on <sev>       critical | high | medium | low (default: high)
   --fail-on-cant-tell   Exit 2 when verdict is CAN'T TELL
+  --baseline <file>     Baseline file relative to workspace (default: .marlowe-baseline.json)
+  --no-baseline         Ignore .marlowe-baseline.json during this scan
   --no-osv              Skip online OSV.dev advisory queries
   --scanners <list>     none | auto | comma-separated CLIs (gitleaks,semgrep,trivy,osv-scanner)
   --sarif <file>        Write SARIF v2.1.0 report to file
@@ -89,7 +106,9 @@ async function cmdScan(flags) {
     baseRef: typeof flags.base === 'string' ? flags.base : '',
     failOn: typeof flags['fail-on'] === 'string' ? flags['fail-on'] : 'high',
     queryOsv: flags.osv !== false,
-    scanners
+    scanners,
+    baselinePath: typeof flags.baseline === 'string' ? flags.baseline : '',
+    useBaseline: flags.baseline !== false
   });
 
   if (typeof flags.sarif === 'string' && flags.sarif.trim()) {
@@ -148,6 +167,84 @@ async function cmdInit(flags) {
   return 0;
 }
 
+async function cmdBaseline(flags) {
+  const root = path.resolve(String(flags.path || '.'));
+  const outPath = typeof flags.out === 'string' && flags.out.trim() ? flags.out.trim() : '.marlowe-baseline.json';
+  const result = await runAudit({
+    root,
+    mode: 'full',
+    queryOsv: flags.osv !== false,
+    useBaseline: false
+  });
+  const saved = await writeBaseline(root, result, outPath);
+  if (flags.json) {
+    process.stdout.write(JSON.stringify(saved, null, 2) + '\n');
+  } else {
+    process.stdout.write(`✓ Wrote ${saved.baselinedCount} acknowledged non-secret finding(s) to ${saved.path}`);
+    if (saved.skippedSecrets > 0) {
+      process.stdout.write(` (skipped ${saved.skippedSecrets} secret(s) — secrets are never baselined)`);
+    }
+    process.stdout.write('\n');
+  }
+  return saved.skippedSecrets > 0 ? 1 : 0;
+}
+
+async function cmdRecon(kind, target, flags) {
+  if (!kind || !target) {
+    throw new Error('Usage: marlowe-ci recon <http|tls|dns> <target> [--path <dir>] [--method GET|HEAD] [--json]');
+  }
+  const root = path.resolve(String(flags.path || '.'));
+  const scope = await loadScopeConfig(root);
+  const signal = new AbortController().signal;
+  let out;
+  if (kind === 'http') {
+    out = await inspectHttpSecurity(target, { method: typeof flags.method === 'string' ? flags.method : 'GET', scope }, signal);
+  } else if (kind === 'tls') {
+    out = await inspectTls(target, { scope }, signal);
+  } else if (kind === 'dns') {
+    out = await dnsRecon(target, { scope }, signal);
+  } else {
+    throw new Error(`Unknown recon subcommand "${kind}". Use http, tls, or dns.`);
+  }
+  if (flags.json) {
+    process.stdout.write(JSON.stringify(out, null, 2) + '\n');
+  } else {
+    process.stdout.write(`${out.summary}\n`);
+    for (const issue of out.issues || []) {
+      process.stdout.write(`  - [${String(issue.severity || 'info').toUpperCase()}] ${issue.issue} (${issue.cwe || 'config'})\n`);
+    }
+  }
+  return (out.issues || []).some(i => i.severity === 'high' || i.severity === 'critical') ? 1 : 0;
+}
+
+async function cmdDfir(kind, fileArg, flags) {
+  if (!kind || !fileArg) {
+    throw new Error('Usage: marlowe-ci dfir <triage|logs|iocs> <file> [--path <dir>] [--filter <str>] [--json]');
+  }
+  const root = path.resolve(String(flags.path || '.'));
+  const resolved = await resolveWithinRoot(root, fileArg);
+  const signal = new AbortController().signal;
+  let out;
+  if (kind === 'triage') {
+    out = await triageArtifact(resolved.fullPath, resolved.relPath, signal);
+  } else if (kind === 'logs') {
+    out = await analyzeLogs(resolved.fullPath, resolved.relPath, { filter: typeof flags.filter === 'string' ? flags.filter : '' }, signal);
+  } else if (kind === 'iocs') {
+    out = await extractIocs(resolved.fullPath, resolved.relPath, signal);
+  } else {
+    throw new Error(`Unknown dfir subcommand "${kind}". Use triage, logs, or iocs.`);
+  }
+  if (flags.json) {
+    process.stdout.write(JSON.stringify(out, null, 2) + '\n');
+  } else {
+    process.stdout.write(`${out.summary}\n`);
+    for (const alert of (out.alerts || []).slice(0, 15)) {
+      process.stdout.write(`  - line ${alert.line} [${alert.type}] ${alert.sample}\n`);
+    }
+  }
+  return 0;
+}
+
 async function cmdDoctor(flags) {
   const root = path.resolve(String(flags.path || '.'));
   const commandPath = (await loginPath({ shell: process.env.SHELL || '', root, env: process.env })) || process.env.PATH || DEFAULT_PATH;
@@ -179,6 +276,9 @@ async function main() {
   const sub = positionals[0] || 'scan';
 
   if (sub === 'scan') return cmdScan(flags);
+  if (sub === 'baseline') return cmdBaseline(flags);
+  if (sub === 'recon') return cmdRecon(positionals[1], positionals[2], flags);
+  if (sub === 'dfir') return cmdDfir(positionals[1], positionals[2], flags);
   if (sub === 'claude') {
     const hookType = positionals[1] || '';
     return runClaudeHookCli(hookType, { strictCantTell: Boolean(flags['strict-cant-tell']) });

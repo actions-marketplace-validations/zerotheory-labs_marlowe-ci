@@ -20,11 +20,15 @@ function formatTerminalReport(result) {
   const meta = VERDICT_META[result.verdict] || VERDICT_META['cant-tell'];
   const lines = [
     ``,
-    `Zero Theory Labs · Marlowe CI / Guard v0.1.2`,
+    `Zero Theory Labs · Marlowe CI / Guard v0.2.0`,
     `Verdict: ${meta.badge} (${result.mode} mode · ${result.scannedFiles} file(s) inspected in ${result.durationMs}ms)`,
     `${meta.summary}`,
     ``
   ];
+
+  if (result.baselinedCount > 0) {
+    lines.push(`Baselined (acknowledged non-secret findings): ${result.baselinedCount}${result.baselinePath ? ` (${result.baselinePath})` : ''}`, '');
+  }
 
   if (result.findings.length) {
     lines.push(`Findings (${result.findings.length} total, ${result.failingFindings.length} failing >= ${result.failOn}):`);
@@ -68,7 +72,7 @@ function formatMarkdownSummary(result) {
     ``,
     `> ${meta.summary}`,
     ``,
-    `- **Mode:** \`${result.mode}\` · **Files inspected:** \`${result.scannedFiles}\` · **Threshold:** \`${result.failOn}\` · **Duration:** \`${result.durationMs}ms\``,
+    `- **Mode:** \`${result.mode}\` · **Files inspected:** \`${result.scannedFiles}\` · **Threshold:** \`${result.failOn}\` · **Duration:** \`${result.durationMs}ms\`${result.baselinedCount > 0 ? ` · **Baselined:** \`${result.baselinedCount}\`` : ''}`,
     ''
   ];
 

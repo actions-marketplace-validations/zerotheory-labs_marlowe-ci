@@ -22,6 +22,7 @@ const {
 const { normalizeFinding, toSarifReport, toMarkdownReport } = require('../core/findings.cjs');
 const { getGitDiff } = require('./git-diff.cjs');
 const { detectGuardrailRegressions } = require('./regressions.cjs');
+const { loadBaseline, applyBaseline } = require('./baseline.cjs');
 
 const SEVERITY_RANK = { critical: 4, high: 3, medium: 2, low: 1, info: 0 };
 const SAFE_MEDIA_RE = /\.(?:png|jpe?g|webp|gif|svg|ico|mp4|webm|mov|woff2?|ttf|otf|pdf|lock)$/i;
@@ -168,6 +169,8 @@ async function runAudit({
   queryOsv = true,
   scanners = [],
   scopeConfig = null,
+  baselinePath = '',
+  useBaseline = true,
   signal = new AbortController().signal
 } = {}) {
   const startedAt = Date.now();
@@ -213,6 +216,9 @@ async function runAudit({
         changedFiles: 0,
         findings: [],
         failingFindings: [],
+        baselinedFindings: [],
+        baselinedCount: 0,
+        baselinePath: '',
         cantTellReasons,
         dnaFlags: [],
         dependencySummary: null,
@@ -470,7 +476,19 @@ async function runAudit({
     }
   }
 
-  const findings = normalizeFindingsList(rawFindings, absRoot);
+  const allFindings = normalizeFindingsList(rawFindings, absRoot);
+  const baseline = useBaseline ? await loadBaseline(absRoot, baselinePath) : null;
+  const { activeFindings: findings, baselinedFindings } = applyBaseline(allFindings, baseline);
+
+  // If an unverified-sink finding was explicitly baselined, remove its matching unverified-sink notice
+  // while never silencing secrets, regressions, untriaged binaries, or new unverified sinks.
+  const baselinedLocs = new Set(baselinedFindings.map(f => f.location.toLowerCase()));
+  const filteredCantTell = cantTellReasons.filter(r => {
+    if (r.code !== 'unverified-sink') return true;
+    const key = `${String(r.path || '').replace(/^\.\//, '')}:${r.line || ''}`.toLowerCase();
+    return !baselinedLocs.has(key);
+  });
+
   const threshold = SEVERITY_RANK[String(failOn || 'high').toLowerCase()] ?? SEVERITY_RANK.high;
   const failingFindings = findings.filter(
     f => f.category === 'secrets' || (f.reachability !== 'unverified' && (SEVERITY_RANK[f.severity] ?? 0) >= threshold)
@@ -481,7 +499,7 @@ async function runAudit({
   if (failingFindings.length > 0) {
     verdict = 'fails';
     verdictLabel = 'FAILS';
-  } else if (cantTellReasons.length > 0) {
+  } else if (filteredCantTell.length > 0) {
     verdict = 'cant-tell';
     verdictLabel = "CAN'T TELL";
   }
@@ -496,7 +514,10 @@ async function runAudit({
     changedFiles: diffFiles.length || candidates.length,
     findings,
     failingFindings,
-    cantTellReasons,
+    baselinedFindings,
+    baselinedCount: baselinedFindings.length,
+    baselinePath: baseline?.path || '',
+    cantTellReasons: filteredCantTell,
     dnaFlags,
     dependencySummary,
     scannerRuns,
